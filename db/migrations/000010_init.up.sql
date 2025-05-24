@@ -25,6 +25,7 @@ create table message(
     updated_timestamp timestamp,
     primary key (chat_id, id)
 );
+SELECT create_distributed_table('message', 'chat_id');
 
 -- partition by user_id
 create table chat_user_view(

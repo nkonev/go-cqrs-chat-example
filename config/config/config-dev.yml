@@ -21,7 +21,7 @@ kafka:
 otlp:
   endpoint: localhost:4317
 postgresql:
-  url: "postgres://postgres:postgresqlPassword@localhost:5432/postgres?sslmode=disable&application_name=cqrs-app"
+  url: "postgres://postgres:postgresqlPassword@localhost:5432/chat?sslmode=disable&application_name=cqrs-app"
   maxOpenConnections: 16
   maxIdleConnections: 4
   maxLifetime: 30s
