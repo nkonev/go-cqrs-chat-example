@@ -543,9 +543,11 @@ func (m *CommonProjection) setUnreadMessages(ctx context.Context, tx *db.Tx, par
 			select
 				ngm.user_id as user_id,
 				cast ($2 as bigint) as chat_id,
-				(SELECT count(m.id) FILTER(WHERE m.id > (select normalized_message_id from normalized_given_message n where n.user_id = ngm.user_id))
+				(
+					SELECT count(m.id) FILTER(WHERE m.id > (select normalized_message_id from normalized_given_message n where n.user_id = ngm.user_id))
 					FROM message m
-					WHERE m.chat_id = $2) as unread_messages,
+					WHERE m.chat_id = $2
+				) as unread_messages,
 				ngm.normalized_message_id as last_message_id
 			from normalized_given_message ngm
 		)
