@@ -501,7 +501,14 @@ func (m *CommonProjection) OnChatViewRefreshed(ctx context.Context, event *ChatV
 
 func (m *CommonProjection) setUnreadMessages(ctx context.Context, tx *db.Tx, participantIds []int64, chatId, messageId int64, needSet, needRefresh bool) error {
 	_, err := tx.ExecContext(ctx, `
-		with normalized_user as (
+		with 
+		chat_messages as (
+			select m.id, m.chat_id from message m where m.chat_id = $2
+		),
+		max_message as (
+			select max(id) as max from chat_messages m
+		),
+		normalized_user as (
 			select unnest(cast ($1 as bigint[])) as user_id
 		),
 		last_message as (
@@ -513,8 +520,8 @@ func (m *CommonProjection) setUnreadMessages(ctx context.Context, tx *db.Tx, par
 					(case
 						when exists(select * from unread_messages_user_view uw where uw.chat_id = $2 and uw.user_id = w.user_id and uw.last_message_id > 0)
 						then coalesce(
-							(select id as last_message_id from message m where m.chat_id = $2 and m.id = w.last_message_id),
-							(select max(id) as max from message m where m.chat_id = $2 and $5 = true)
+							(select m.id as last_message_id from chat_messages m where m.id = w.last_message_id),
+							(select max from max_message where $5 = true)
 						)
 					end) as last_message_id,
 					w.user_id
@@ -525,8 +532,8 @@ func (m *CommonProjection) setUnreadMessages(ctx context.Context, tx *db.Tx, par
 		),
 		existing_message as (
 			select coalesce(
-				(select m.id from message m where m.chat_id = $2 and m.id = $3),
-				(select max(m.id) as max from message m where m.chat_id = $2),
+				(select m.id from chat_messages m where m.id = $3),
+				(select max from max_message),
 				0
 			) as normalized_message_id
 		),
@@ -545,8 +552,7 @@ func (m *CommonProjection) setUnreadMessages(ctx context.Context, tx *db.Tx, par
 				cast ($2 as bigint) as chat_id,
 				(
 					SELECT count(m.id) FILTER(WHERE m.id > (select normalized_message_id from normalized_given_message n where n.user_id = ngm.user_id))
-					FROM message m
-					WHERE m.chat_id = $2
+					FROM chat_messages m
 				) as unread_messages,
 				ngm.normalized_message_id as last_message_id
 			from normalized_given_message ngm
