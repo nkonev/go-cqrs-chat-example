@@ -503,10 +503,10 @@ func (m *CommonProjection) setUnreadMessages(ctx context.Context, tx *db.Tx, par
 	_, err := tx.ExecContext(ctx, `
 		with 
 		chat_messages as (
-			select m.id, m.chat_id from message m where m.chat_id = $2
+			select m.id from message m where m.chat_id = $2
 		),
 		max_message as (
-			select max(id) as max from chat_messages m
+			select max(m.id) as max from chat_messages m
 		),
 		normalized_user as (
 			select unnest(cast ($1 as bigint[])) as user_id
@@ -618,7 +618,7 @@ func (m *CommonProjection) GetLastMessageReaded(ctx context.Context, chatId, use
 	r := m.db.QueryRowContext(ctx, `
 	with
 	chat_messages as (
-		select m.id, m.chat_id from message m where m.chat_id = $2
+		select m.id from message m where m.chat_id = $2
 	)
 	select 
 	    um.last_message_id, 
