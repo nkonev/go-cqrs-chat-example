@@ -1,6 +1,5 @@
 create sequence chat_id_sequence;
 
--- partition by chat_id
 create table chat_common(
     id bigint primary key,
     title varchar(512) not null,
@@ -8,7 +7,6 @@ create table chat_common(
     created_timestamp timestamp not null
 );
 
--- partition by chat_id
 create table chat_participant(
     user_id bigint not null,
     chat_id bigint not null,
@@ -16,7 +14,6 @@ create table chat_participant(
 );
 SELECT create_distributed_table('chat_participant', 'chat_id');
 
--- partition by chat_id
 create table message(
     id bigint not null,
     chat_id bigint not null,
@@ -28,7 +25,6 @@ create table message(
 );
 SELECT create_distributed_table('message', 'chat_id');
 
--- partition by user_id
 create table chat_user_view(
     id bigint not null,
     title varchar(512) not null,

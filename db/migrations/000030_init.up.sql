@@ -1,4 +1,3 @@
--- partition by user_id
 create table unread_messages_user_view(
     user_id bigint not null,
     chat_id bigint not null,
