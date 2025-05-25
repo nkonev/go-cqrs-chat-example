@@ -293,7 +293,7 @@ func (m *CommonProjection) OnParticipantAdded(ctx context.Context, event *Partic
 func (m *CommonProjection) OnParticipantRemoved(ctx context.Context, event *ParticipantDeleted) error {
 	errOuter := db.Transact(ctx, m.db, func(tx *db.Tx) error {
 		_, err := tx.ExecContext(ctx, `
-		delete from chat_participant where user_id = any($1) and chat_id = $2
+		delete from chat_participant where chat_id = $2 and user_id = any($1)
 	`, event.ParticipantIds, event.ChatId)
 		if err != nil {
 			return err
