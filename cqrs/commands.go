@@ -238,7 +238,7 @@ func (s *MessageCreate) Handle(ctx context.Context, eventBus EventBusInterface, 
 func (s *MessageRead) Handle(ctx context.Context, eventBus EventBusInterface, commonProjection *CommonProjection) error {
 
 	lastMessageReadedId, lastMessgeReadedExists, maxMessageId, err := commonProjection.GetLastMessageReaded(ctx, s.ChatId, s.ParticipantId)
-	if err != nil { // TODO direct joins...
+	if err != nil {
 		return err
 	}
 

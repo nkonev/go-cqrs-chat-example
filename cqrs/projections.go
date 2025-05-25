@@ -610,12 +610,14 @@ func (m *CommonProjection) GetMessageOwner(ctx context.Context, chatId, messageI
 
 func (m *CommonProjection) GetLastMessageReaded(ctx context.Context, chatId, userId int64) (int64, bool, int64, error) {
 	r := m.db.QueryRowContext(ctx, `
+	with last_message_id as (
+	  select um.last_message_id, um.user_id, um.chat_id from unread_messages_user_view um where (um.user_id, um.chat_id) = ($1, $2)
+	)
 	select 
-	    um.last_message_id, 
-	    exists(select * from message m where m.chat_id = $2 and m.id = um.last_message_id),
-	    (select max(id) from message m where m.chat_id = $2)
-	from unread_messages_user_view um 
-    where (um.user_id, um.chat_id) = ($1, $2)
+		lmm.last_message_id,
+		exists(select * from message m where m.chat_id = $2 and m.id = lmm.last_message_id),
+		 (select max(id) from message m where m.chat_id = $2)
+	from last_message_id lmm
 	`, userId, chatId)
 	if r.Err() != nil {
 		return 0, false, 0, r.Err()
