@@ -500,8 +500,6 @@ func (m *CommonProjection) OnChatViewRefreshed(ctx context.Context, event *ChatV
 }
 
 func (m *CommonProjection) setUnreadMessages(ctx context.Context, tx *db.Tx, participantIds []int64, chatId, messageId int64, needSet, needRefresh bool) error {
-	return nil // TODO direct joins...
-
 	_, err := tx.ExecContext(ctx, `
 		with normalized_user as (
 			select unnest(cast ($1 as bigint[])) as user_id
@@ -527,8 +525,8 @@ func (m *CommonProjection) setUnreadMessages(ctx context.Context, tx *db.Tx, par
 		),
 		existing_message as (
 			select coalesce(
-				(select id from message where chat_id = $2 and id = $3),
-				(select max(id) as max from message where chat_id = $2),
+				(select m.id from message m where m.chat_id = $2 and m.id = $3),
+				(select max(m.id) as max from message m where m.chat_id = $2),
 				0
 			) as normalized_message_id
 		),
