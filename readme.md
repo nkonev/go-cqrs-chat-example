@@ -128,3 +128,10 @@ curl -Ss -X GET -H 'X-UserId: 1' --url 'http://localhost:8080/chat/search' | jq
 curl -Ss -X GET --url 'http://localhost:8080/chat/1/participants' | jq
 curl -Ss -X GET --url 'http://localhost:8080/chat/1/message/search' | jq
 ```
+
+```sql
+SELECT * FROM citus_shards;
+SELECT * from pg_dist_shard;
+SELECT * from citus_get_active_worker_nodes();
+SELECT * FROM citus_check_cluster_node_health();
+```
