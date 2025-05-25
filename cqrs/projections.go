@@ -500,6 +500,8 @@ func (m *CommonProjection) OnChatViewRefreshed(ctx context.Context, event *ChatV
 }
 
 func (m *CommonProjection) setUnreadMessages(ctx context.Context, tx *db.Tx, participantIds []int64, chatId, messageId int64, needSet, needRefresh bool) error {
+	return nil // TODO direct joins...
+
 	_, err := tx.ExecContext(ctx, `
 		with normalized_user as (
 			select unnest(cast ($1 as bigint[])) as user_id
