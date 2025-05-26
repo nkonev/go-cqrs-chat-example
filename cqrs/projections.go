@@ -249,17 +249,21 @@ func (m *CommonProjection) OnParticipantAdded(ctx context.Context, event *Partic
 
 		// because we select chat_common, inserted from this consumer group in ChatCreated handler
 		_, err = tx.ExecContext(ctx, `
-		with user_input as (
+		with 
+		chat_participant_count as (
+			select count (*) as count from chat_participant where chat_id = $2
+		),
+		user_input as (
 			select unnest(cast ($1 as bigint[])) as user_id
 		),
 		input_data as (
-			select c.id as chat_id, c.title as title, false as pinned, u.user_id as user_id, cast ($3 as timestamp) as updated_timestamp
+			select c.id as chat_id, c.title as title, false as pinned, u.user_id as user_id, cast ($3 as timestamp) as updated_timestamp, (select count from chat_participant_count) as participants_count
 			from user_input u
 			cross join (select cc.id, cc.title from chat_common cc where cc.id = $2) c 
 		)
-		insert into chat_user_view(id, title, pinned, user_id, updated_timestamp) 
-			select chat_id, title, pinned, user_id, updated_timestamp from input_data
-		on conflict(user_id, id) do update set pinned = excluded.pinned, title = excluded.title, updated_timestamp = excluded.updated_timestamp
+		insert into chat_user_view(id, title, pinned, user_id, updated_timestamp, participants_count) 
+			select chat_id, title, pinned, user_id, updated_timestamp, participants_count from input_data
+		on conflict(user_id, id) do update set pinned = excluded.pinned, title = excluded.title, updated_timestamp = excluded.updated_timestamp, participants_count = excluded.participants_count
 	`, event.ParticipantIds, event.ChatId, event.AdditionalData.CreatedAt)
 		if err != nil {
 			return err
@@ -483,6 +487,21 @@ func (m *CommonProjection) OnChatViewRefreshed(ctx context.Context, event *ChatV
 			}
 		}
 
+		if event.ParticipantsAction == ParticipantsActionRefresh {
+			_, err := tx.ExecContext(ctx, `
+					with
+					chat_participant_count as (
+						select count (*) as count from chat_participant where chat_id = $2
+					)
+					UPDATE chat_user_view 
+					SET participants_count = (select count from chat_participant_count)
+					WHERE user_id = any($1) and id = $2;
+				`, event.ParticipantIds, event.ChatId)
+			if err != nil {
+				return fmt.Errorf("error during increasing unread messages: %w", err)
+			}
+		}
+
 		_, err := tx.ExecContext(ctx, `
 				update chat_user_view set updated_timestamp = $3 where user_id = any($1) and id = $2
 			`, event.ParticipantIds, event.ChatId, event.AdditionalData.CreatedAt)
@@ -694,6 +713,7 @@ type ChatViewDto struct {
 	LastMessageId      *int64  `json:"lastMessageId"`
 	LastMessageOwnerId *int64  `json:"lastMessageOwnerId"`
 	LastMessageContent *string `json:"lastMessageContent"`
+	ParticipantsCount  int64   `json:"participantsCount"`
 }
 
 func (m *CommonProjection) GetChats(ctx context.Context, participantId int64) ([]ChatViewDto, error) {
@@ -703,7 +723,7 @@ func (m *CommonProjection) GetChats(ctx context.Context, participantId int64) ([
 	// so querying a page (using keyset) from a large amount of chats is fast
 	// it's the root cause why we use cqrs
 	rows, err := m.db.QueryContext(ctx, `
-		select ch.id, ch.title, ch.pinned, coalesce(m.unread_messages, 0), ch.last_message_id, ch.last_message_owner_id, ch.last_message_content
+		select ch.id, ch.title, ch.pinned, coalesce(m.unread_messages, 0), ch.last_message_id, ch.last_message_owner_id, ch.last_message_content, ch.participants_count
 		from chat_user_view ch
 		join unread_messages_user_view m on (ch.id = m.chat_id and m.user_id = $1)
 		where ch.user_id = $1
@@ -715,7 +735,7 @@ func (m *CommonProjection) GetChats(ctx context.Context, participantId int64) ([
 	defer rows.Close()
 	for rows.Next() {
 		var cd ChatViewDto
-		err = rows.Scan(&cd.Id, &cd.Title, &cd.Pinned, &cd.UnreadMessages, &cd.LastMessageId, &cd.LastMessageOwnerId, &cd.LastMessageContent)
+		err = rows.Scan(&cd.Id, &cd.Title, &cd.Pinned, &cd.UnreadMessages, &cd.LastMessageId, &cd.LastMessageOwnerId, &cd.LastMessageContent, &cd.ParticipantsCount)
 		if err != nil {
 			return ma, err
 		}

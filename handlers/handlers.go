@@ -164,7 +164,7 @@ func makeHttpHandlers(ginRouter *gin.Engine, slogLogger *slog.Logger, eventBus c
 			ChatId:         chatId,
 		}
 
-		err = cc.Handle(g.Request.Context(), eventBus)
+		err = cc.Handle(g.Request.Context(), eventBus, commonProjection)
 		if err != nil {
 			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error sending ParticipantAdd command", "err", err)
 			g.Status(http.StatusInternalServerError)
@@ -199,7 +199,7 @@ func makeHttpHandlers(ginRouter *gin.Engine, slogLogger *slog.Logger, eventBus c
 			ChatId:         chatId,
 		}
 
-		err = cc.Handle(g.Request.Context(), eventBus)
+		err = cc.Handle(g.Request.Context(), eventBus, commonProjection)
 		if err != nil {
 			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error sending ParticipantDelete command", "err", err)
 			g.Status(http.StatusInternalServerError)

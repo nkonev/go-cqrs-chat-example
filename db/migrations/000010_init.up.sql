@@ -34,6 +34,7 @@ create table chat_user_view(
     last_message_id bigint,
     last_message_content text,
     last_message_owner_id bigint,
+    participants_count bigint,
     primary key (user_id, id)
 );
 SELECT create_distributed_table('chat_user_view', 'user_id');

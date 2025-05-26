@@ -79,6 +79,12 @@ const (
 	ChatCommonActionRefresh = iota + 1
 )
 
+type ParticipantsAction int16
+
+const (
+	ParticipantsActionRefresh = iota + 1
+)
+
 type ChatViewRefreshed struct {
 	AdditionalData       *AdditionalData      `json:"additionalData"`
 	ParticipantIds       []int64              `json:"participantIds"`
@@ -87,6 +93,7 @@ type ChatViewRefreshed struct {
 	UnreadMessagesAction UnreadMessagesAction `json:"unreadMessagesAction"`
 	LastMessageAction    LastMessageAction    `json:"lastMessageAction"`
 	ChatCommonAction     ChatCommonAction     `json:"chatCommonAction"`
+	ParticipantsAction   ParticipantsAction   `json:"participantsAction"`
 	IncreaseOn           int                  `json:"increaseOn"`
 	OwnerId              int64                `json:"ownerId"` // owner of message
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"go-cqrs-chat-example/db"
+	"go-cqrs-chat-example/utils"
 )
 
 type ChatCreate struct {
@@ -135,6 +136,10 @@ func (s *ChatEdit) Handle(ctx context.Context, eventBus EventBusInterface, commo
 		Title:            s.Title,
 	}
 
+	if len(s.ParticipantIdsToAdd) > 0 {
+		ui.ParticipantsAction = ParticipantsActionRefresh
+	}
+
 	err = eventBus.Publish(ctx, ui)
 	if err != nil {
 		return err
@@ -166,22 +171,71 @@ func (s *ChatDelete) Handle(ctx context.Context, eventBus EventBusInterface, com
 	return eventBus.Publish(ctx, pa)
 }
 
-func (s *ParticipantAdd) Handle(ctx context.Context, eventBus EventBusInterface) error {
+func (s *ParticipantAdd) Handle(ctx context.Context, eventBus EventBusInterface, commonProjection *CommonProjection) error {
+	participantIds, err := commonProjection.GetParticipants(ctx, s.ChatId)
+	if err != nil {
+		return err
+	}
+
 	pa := &ParticipantsAdded{
 		AdditionalData: s.AdditionalData,
 		ParticipantIds: s.ParticipantIds,
 		ChatId:         s.ChatId,
 	}
-	return eventBus.Publish(ctx, pa)
+	err = eventBus.Publish(ctx, pa)
+	if err != nil {
+		return err
+	}
+
+	ui := &ChatViewRefreshed{
+		AdditionalData:     s.AdditionalData,
+		ParticipantIds:     participantIds, // chat_user_views for newly added participants will be created from scratch including already added, see ParticipantsAdded handler
+		ChatId:             s.ChatId,
+		ParticipantsAction: ParticipantsActionRefresh,
+	}
+	err = eventBus.Publish(ctx, ui)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (s *ParticipantDelete) Handle(ctx context.Context, eventBus EventBusInterface) error {
+func (s *ParticipantDelete) Handle(ctx context.Context, eventBus EventBusInterface, commonProjection *CommonProjection) error {
+	participantIds, err := commonProjection.GetParticipants(ctx, s.ChatId)
+	if err != nil {
+		return err
+	}
+
 	pa := &ParticipantDeleted{
 		AdditionalData: s.AdditionalData,
 		ParticipantIds: s.ParticipantIds,
 		ChatId:         s.ChatId,
 	}
-	return eventBus.Publish(ctx, pa)
+	err = eventBus.Publish(ctx, pa)
+	if err != nil {
+		return err
+	}
+
+	remainingParticipantIds := make([]int64, len(participantIds))
+	copy(remainingParticipantIds, participantIds)
+	for _, participantToDeleteId := range s.ParticipantIds {
+		remainingParticipantIds = utils.GetSliceWithout(participantToDeleteId, remainingParticipantIds)
+	}
+	if len(remainingParticipantIds) > 0 {
+		ui := &ChatViewRefreshed{
+			AdditionalData:     s.AdditionalData,
+			ParticipantIds:     remainingParticipantIds,
+			ChatId:             s.ChatId,
+			ParticipantsAction: ParticipantsActionRefresh,
+		}
+		err = eventBus.Publish(ctx, ui)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (s *ChatPin) Handle(ctx context.Context, eventBus EventBusInterface) error {
