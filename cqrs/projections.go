@@ -780,6 +780,7 @@ func (m *CommonProjection) GetChats(ctx context.Context, participantId int64) ([
 		if err != nil {
 			return ma, err
 		}
+		cd.ParticipantIds = []int64{}
 		for _, aParticipantId := range participantIds.Elements {
 			cd.ParticipantIds = append(cd.ParticipantIds, aParticipantId.Int)
 		}
