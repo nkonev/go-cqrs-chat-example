@@ -248,8 +248,9 @@ func ConfigureEventProcessor(
 func ConfigureCommonProjection(
 	dba *db.DB,
 	slogLogger *slog.Logger,
+	cfg *config.AppConfig,
 ) *CommonProjection {
-	return NewCommonProjection(dba, slogLogger)
+	return NewCommonProjection(dba, slogLogger, cfg)
 }
 
 func SetIsNeedToFastForwardSequences(commonProjection *CommonProjection) error {

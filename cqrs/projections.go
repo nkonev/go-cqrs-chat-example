@@ -3,6 +3,8 @@ package cqrs
 import (
 	"context"
 	"fmt"
+	"github.com/jackc/pgtype"
+	"go-cqrs-chat-example/config"
 	"go-cqrs-chat-example/db"
 	"go-cqrs-chat-example/logger"
 	"go-cqrs-chat-example/utils"
@@ -11,14 +13,16 @@ import (
 )
 
 type CommonProjection struct {
-	db         *db.DB
-	slogLogger *slog.Logger
+	db                 *db.DB
+	slogLogger         *slog.Logger
+	chatUserViewConfig *config.ChatUserViewConfig
 }
 
-func NewCommonProjection(db *db.DB, slogLogger *slog.Logger) *CommonProjection {
+func NewCommonProjection(db *db.DB, slogLogger *slog.Logger, cfg *config.AppConfig) *CommonProjection {
 	return &CommonProjection{
-		db:         db,
-		slogLogger: slogLogger,
+		db:                 db,
+		slogLogger:         slogLogger,
+		chatUserViewConfig: &cfg.ProjectionsConfig.ChatUserViewConfig,
 	}
 }
 
@@ -250,21 +254,39 @@ func (m *CommonProjection) OnParticipantAdded(ctx context.Context, event *Partic
 		// because we select chat_common, inserted from this consumer group in ChatCreated handler
 		_, err = tx.ExecContext(ctx, `
 		with 
+		this_chat_participants as (
+			select user_id from chat_participant where chat_id = $2
+		),
 		chat_participant_count as (
-			select count (*) as count from chat_participant where chat_id = $2
+			select count (*) as count from this_chat_participants
+		),
+		chat_participants_last_n as (
+			select user_id from this_chat_participants order by user_id desc limit $4
 		),
 		user_input as (
 			select unnest(cast ($1 as bigint[])) as user_id
 		),
 		input_data as (
-			select c.id as chat_id, c.title as title, false as pinned, u.user_id as user_id, cast ($3 as timestamp) as updated_timestamp, (select count from chat_participant_count) as participants_count
+			select 
+				c.id as chat_id, 
+				c.title as title, 
+				false as pinned, 
+				u.user_id as user_id, 
+				cast ($3 as timestamp) as updated_timestamp,
+				(select count from chat_participant_count) as participants_count, 
+				(select array_agg(user_id) from chat_participants_last_n) as participant_ids
 			from user_input u
 			cross join (select cc.id, cc.title from chat_common cc where cc.id = $2) c 
 		)
-		insert into chat_user_view(id, title, pinned, user_id, updated_timestamp, participants_count) 
-			select chat_id, title, pinned, user_id, updated_timestamp, participants_count from input_data
-		on conflict(user_id, id) do update set pinned = excluded.pinned, title = excluded.title, updated_timestamp = excluded.updated_timestamp, participants_count = excluded.participants_count
-	`, event.ParticipantIds, event.ChatId, event.AdditionalData.CreatedAt)
+		insert into chat_user_view(id, title, pinned, user_id, updated_timestamp, participants_count, participant_ids) 
+			select chat_id, title, pinned, user_id, updated_timestamp, participants_count, participant_ids from input_data
+		on conflict(user_id, id) do update set
+			pinned = excluded.pinned, 
+			title = excluded.title, 
+			updated_timestamp = excluded.updated_timestamp, 
+			participants_count = excluded.participants_count, 
+			participant_ids = excluded.participant_ids
+		`, event.ParticipantIds, event.ChatId, event.AdditionalData.CreatedAt, m.chatUserViewConfig.MaxViewableParticipants)
 		if err != nil {
 			return err
 		}
@@ -490,13 +512,21 @@ func (m *CommonProjection) OnChatViewRefreshed(ctx context.Context, event *ChatV
 		if event.ParticipantsAction == ParticipantsActionRefresh {
 			_, err := tx.ExecContext(ctx, `
 					with
+					this_chat_participants as (
+						select user_id from chat_participant where chat_id = $2
+					),
 					chat_participant_count as (
-						select count (*) as count from chat_participant where chat_id = $2
+						select count (*) as count from this_chat_participants
+					),
+					chat_participants_last_n as (
+						select user_id from this_chat_participants order by user_id desc limit $3
 					)
 					UPDATE chat_user_view 
-					SET participants_count = (select count from chat_participant_count)
+					SET 
+						participants_count = (select count from chat_participant_count),
+						participant_ids = (select array_agg(user_id) from chat_participants_last_n)
 					WHERE user_id = any($1) and id = $2;
-				`, event.ParticipantIds, event.ChatId)
+				`, event.ParticipantIds, event.ChatId, m.chatUserViewConfig.MaxViewableParticipants)
 			if err != nil {
 				return fmt.Errorf("error during increasing unread messages: %w", err)
 			}
@@ -714,6 +744,7 @@ type ChatViewDto struct {
 	LastMessageOwnerId *int64  `json:"lastMessageOwnerId"`
 	LastMessageContent *string `json:"lastMessageContent"`
 	ParticipantsCount  int64   `json:"participantsCount"`
+	ParticipantIds     []int64 `json:"participantIds"` // ids of last N participants
 }
 
 func (m *CommonProjection) GetChats(ctx context.Context, participantId int64) ([]ChatViewDto, error) {
@@ -723,7 +754,16 @@ func (m *CommonProjection) GetChats(ctx context.Context, participantId int64) ([
 	// so querying a page (using keyset) from a large amount of chats is fast
 	// it's the root cause why we use cqrs
 	rows, err := m.db.QueryContext(ctx, `
-		select ch.id, ch.title, ch.pinned, coalesce(m.unread_messages, 0), ch.last_message_id, ch.last_message_owner_id, ch.last_message_content, ch.participants_count
+		select 
+		    ch.id,
+		    ch.title,
+		    ch.pinned,
+		    coalesce(m.unread_messages, 0),
+		    ch.last_message_id,
+		    ch.last_message_owner_id,
+		    ch.last_message_content,
+		    ch.participants_count,
+		    ch.participant_ids
 		from chat_user_view ch
 		join unread_messages_user_view m on (ch.id = m.chat_id and m.user_id = $1)
 		where ch.user_id = $1
@@ -735,9 +775,13 @@ func (m *CommonProjection) GetChats(ctx context.Context, participantId int64) ([
 	defer rows.Close()
 	for rows.Next() {
 		var cd ChatViewDto
-		err = rows.Scan(&cd.Id, &cd.Title, &cd.Pinned, &cd.UnreadMessages, &cd.LastMessageId, &cd.LastMessageOwnerId, &cd.LastMessageContent, &cd.ParticipantsCount)
+		var participantIds = pgtype.Int8Array{}
+		err = rows.Scan(&cd.Id, &cd.Title, &cd.Pinned, &cd.UnreadMessages, &cd.LastMessageId, &cd.LastMessageOwnerId, &cd.LastMessageContent, &cd.ParticipantsCount, &participantIds)
 		if err != nil {
 			return ma, err
+		}
+		for _, aParticipantId := range participantIds.Elements {
+			cd.ParticipantIds = append(cd.ParticipantIds, aParticipantId.Int)
 		}
 		ma = append(ma, cd)
 	}

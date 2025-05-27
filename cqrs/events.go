@@ -82,6 +82,8 @@ const (
 type ParticipantsAction int16
 
 const (
+	// represents action to update participants
+	// see also OnParticipantAdd - there chat_user_view is created
 	ParticipantsActionRefresh = iota + 1
 )
 

@@ -50,3 +50,6 @@ http:
   idleConnTimeout: '10s'
   disableCompression: false
   dump: true
+projections:
+  chatUserView:
+    maxViewableParticipants: 10

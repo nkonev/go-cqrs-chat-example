@@ -85,13 +85,22 @@ type ExportConfig struct {
 	File string `mapstructure:"file"`
 }
 
+type ChatUserViewConfig struct {
+	MaxViewableParticipants int32 `mapstructure:"maxViewableParticipants"`
+}
+
+type ProjectionsConfig struct {
+	ChatUserViewConfig ChatUserViewConfig `mapstructure:"chatUserView"`
+}
+
 type AppConfig struct {
-	KafkaConfig      KafkaConfig      `mapstructure:"kafka"`
-	OtlpConfig       OtlpConfig       `mapstructure:"otlp"`
-	PostgreSQLConfig PostgreSQLConfig `mapstructure:"postgresql"`
-	HttpServerConfig HttpServerConfig `mapstructure:"server"`
-	CqrsConfig       CqrsConfig       `mapstructure:"cqrs"`
-	RestClientConfig RestClientConfig `mapstructure:"http"`
+	KafkaConfig       KafkaConfig       `mapstructure:"kafka"`
+	OtlpConfig        OtlpConfig        `mapstructure:"otlp"`
+	PostgreSQLConfig  PostgreSQLConfig  `mapstructure:"postgresql"`
+	HttpServerConfig  HttpServerConfig  `mapstructure:"server"`
+	CqrsConfig        CqrsConfig        `mapstructure:"cqrs"`
+	RestClientConfig  RestClientConfig  `mapstructure:"http"`
+	ProjectionsConfig ProjectionsConfig `mapstructure:"projections"`
 }
 
 //go:embed config
