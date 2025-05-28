@@ -353,6 +353,7 @@ func TestAddParticipant(t *testing.T) {
 		assert.Equal(t, chat1Name, chat1OfUser1.Title)
 		assert.Equal(t, int64(0), chat1OfUser1.UnreadMessages)
 		assert.Equal(t, int64(1), chat1OfUser1.ParticipantsCount)
+		assert.Equal(t, []int64{1}, chat1OfUser1.ParticipantIds)
 
 		user2Chats, err := restClient.GetChatsByUserId(ctx, user2)
 		assert.NoError(t, err, "error in getting chats")
@@ -382,6 +383,7 @@ func TestAddParticipant(t *testing.T) {
 		assert.Equal(t, message1.Id, *chat1OfUser2.LastMessageId)
 		assert.Equal(t, message1.Content, *chat1OfUser2.LastMessageContent)
 		assert.Equal(t, int64(2), chat1OfUser2.ParticipantsCount)
+		assert.Equal(t, []int64{2, 1}, chat1OfUser2.ParticipantIds)
 
 		chat1NewName := "new chat 1 renamed"
 		err = restClient.EditChat(ctx, user1, chat1NewName)
@@ -397,6 +399,7 @@ func TestAddParticipant(t *testing.T) {
 		assert.Equal(t, message1.Id, *chat1OfUser1New2.LastMessageId)
 		assert.Equal(t, message1.Content, *chat1OfUser1New2.LastMessageContent)
 		assert.Equal(t, int64(2), chat1OfUser1New2.ParticipantsCount)
+		assert.Equal(t, []int64{2, 1}, chat1OfUser1New2.ParticipantIds)
 
 		user2ChatsNew2, err := restClient.GetChatsByUserId(ctx, user2)
 		assert.NoError(t, err, "error in getting chats")
@@ -407,6 +410,7 @@ func TestAddParticipant(t *testing.T) {
 		assert.Equal(t, message1.Id, *chat1OfUser2New2.LastMessageId)
 		assert.Equal(t, message1.Content, *chat1OfUser2New2.LastMessageContent)
 		assert.Equal(t, int64(2), chat1OfUser2New2.ParticipantsCount)
+		assert.Equal(t, []int64{2, 1}, chat1OfUser2New2.ParticipantIds)
 	})
 }
 
@@ -447,6 +451,7 @@ func TestDeleteParticipant(t *testing.T) {
 		assert.Equal(t, chat1Name, chat1OfUser1.Title)
 		assert.Equal(t, int64(0), chat1OfUser1.UnreadMessages)
 		assert.Equal(t, int64(1), chat1OfUser1.ParticipantsCount)
+		assert.Equal(t, []int64{1}, chat1OfUser1.ParticipantIds)
 
 		user2Chats, err := restClient.GetChatsByUserId(ctx, user2)
 		assert.NoError(t, err, "error in getting chats")
@@ -476,6 +481,7 @@ func TestDeleteParticipant(t *testing.T) {
 		assert.Equal(t, message1.Id, *chat1OfUser2.LastMessageId)
 		assert.Equal(t, message1.Content, *chat1OfUser2.LastMessageContent)
 		assert.Equal(t, int64(2), chat1OfUser2.ParticipantsCount)
+		assert.Equal(t, []int64{2, 1}, chat1OfUser2.ParticipantIds)
 
 		err = restClient.DeleteChatParticipants(ctx, chat1Id, []int64{user2})
 		assert.NoError(t, err, "error in removing chat participants")
@@ -494,6 +500,7 @@ func TestDeleteParticipant(t *testing.T) {
 		assert.Equal(t, 1, len(user1ChatsNew2))
 		chat1OfUser1New2 := user1ChatsNew2[0]
 		assert.Equal(t, int64(1), chat1OfUser1New2.ParticipantsCount)
+		assert.Equal(t, []int64{1}, chat1OfUser1New2.ParticipantIds)
 	})
 }
 
