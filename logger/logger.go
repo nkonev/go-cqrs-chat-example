@@ -13,6 +13,16 @@ func GetTraceId(ctx context.Context) string {
 	return sc.TraceID().String()
 }
 
-func LogWithTrace(ctx context.Context, slogLogger *slog.Logger) *slog.Logger {
-	return slogLogger.With(LogFieldTraceId, GetTraceId(ctx))
+type LoggerWrapper struct {
+	*slog.Logger
+}
+
+func NewLogger(base *slog.Logger) *LoggerWrapper {
+	return &LoggerWrapper{
+		Logger: base,
+	}
+}
+
+func (lw *LoggerWrapper) WithTrace(ctx context.Context) *slog.Logger {
+	return lw.Logger.With(LogFieldTraceId, GetTraceId(ctx))
 }

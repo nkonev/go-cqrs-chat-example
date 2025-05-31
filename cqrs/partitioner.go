@@ -7,7 +7,6 @@ import (
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/ThreeDotsLabs/watermill/message"
 	"go-cqrs-chat-example/logger"
-	"log/slog"
 )
 
 const partitionKey = "partition_key"
@@ -30,13 +29,13 @@ type PartitionableMessage interface {
 }
 
 // GenerateKafkaPartitionKey is a function that generates a partition key for Kafka messages.
-func GenerateKafkaPartitionKey(slogLogger *slog.Logger) kafka.GeneratePartitionKey {
+func GenerateKafkaPartitionKey(lgr *logger.LoggerWrapper) kafka.GeneratePartitionKey {
 	return func(topic string, msg *message.Message) (string, error) {
 		pk, ok := msg.Context().Value(partitionKey).(string)
 		if !ok {
 			return "", errors.New("unable to get partition key from context")
 		}
-		logger.LogWithTrace(msg.Context(), slogLogger).Debug("retrieving partition key", "topic", topic, "msg_metadata", msg.Metadata, partitionKey, pk)
+		lgr.WithTrace(msg.Context()).Debug("retrieving partition key", "topic", topic, "msg_metadata", msg.Metadata, partitionKey, pk)
 		return pk, nil
 	}
 }

@@ -16,7 +16,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httputil"
 )
@@ -24,11 +23,11 @@ import (
 type RestClient struct {
 	*http.Client
 	tracer trace.Tracer
-	lgr    *slog.Logger
 	cfg    *config.AppConfig
+	lgr    *logger.LoggerWrapper
 }
 
-func NewRestClient(cfg *config.AppConfig, lgr *slog.Logger) *RestClient {
+func NewRestClient(cfg *config.AppConfig, lgr *logger.LoggerWrapper) *RestClient {
 	tr := &http.Transport{
 		MaxIdleConns:       cfg.RestClientConfig.MaxIdleConns,
 		IdleConnTimeout:    cfg.RestClientConfig.IdleConnTimeout,
@@ -39,7 +38,7 @@ func NewRestClient(cfg *config.AppConfig, lgr *slog.Logger) *RestClient {
 	client := &http.Client{Transport: trR}
 	trcr := otel.Tracer("rest/client")
 
-	return &RestClient{client, trcr, lgr, cfg}
+	return &RestClient{client, trcr, cfg, lgr}
 }
 
 func (rc *RestClient) CreateChat(ctx context.Context, behalfUserId int64, chatName string) (int64, error) {
@@ -155,7 +154,7 @@ func queryRawResponse[ReqDto any](ctx context.Context, rc *RestClient, behalfUse
 	if req != nil {
 		bytesData, err := json.Marshal(req)
 		if err != nil {
-			logger.LogWithTrace(ctx, rc.lgr).Error(fmt.Sprintf("Failed during marshalling request body for %v:", opName), "err", err)
+			rc.lgr.WithTrace(ctx).Error(fmt.Sprintf("Failed during marshalling request body for %v:", opName), "err", err)
 			return nil, err
 		}
 		reader := bytes.NewReader(bytesData)
@@ -178,12 +177,12 @@ func queryRawResponse[ReqDto any](ctx context.Context, rc *RestClient, behalfUse
 
 	httpResp, err := rc.Do(httpReq)
 	if err != nil {
-		logger.LogWithTrace(ctx, rc.lgr).Warn(fmt.Sprintf("Failed to request %v response:", opName), "err", err)
+		rc.lgr.WithTrace(ctx).Warn(fmt.Sprintf("Failed to request %v response:", opName), "err", err)
 		return nil, err
 	}
 	code := httpResp.StatusCode
 	if !(code >= 200 && code < 300) {
-		logger.LogWithTrace(ctx, rc.lgr).Warn(fmt.Sprintf("%v response responded non-2xx code: ", opName), "code", code)
+		rc.lgr.WithTrace(ctx).Warn(fmt.Sprintf("%v response responded non-2xx code: ", opName), "code", code)
 		return nil, errors.New(fmt.Sprintf("%v response responded non-2xx code", opName))
 	}
 
@@ -209,12 +208,12 @@ func query[ReqDto any, ResDto any](ctx context.Context, rc *RestClient, behalfUs
 
 	bodyBytes, err := io.ReadAll(httpResp.Body)
 	if err != nil {
-		logger.LogWithTrace(ctx, rc.lgr).Warn(fmt.Sprintf("Failed to decode %v response:", opName), "err", err)
+		rc.lgr.WithTrace(ctx).Warn(fmt.Sprintf("Failed to decode %v response:", opName), "err", err)
 		return resp, err
 	}
 
 	if err = json.Unmarshal(bodyBytes, &resp); err != nil {
-		logger.LogWithTrace(ctx, rc.lgr).Error(fmt.Sprintf("Failed to parse %v response:", opName), "err", err)
+		rc.lgr.WithTrace(ctx).Error(fmt.Sprintf("Failed to parse %v response:", opName), "err", err)
 		return resp, err
 	}
 	return resp, nil

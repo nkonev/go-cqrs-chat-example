@@ -8,20 +8,19 @@ import (
 	"go-cqrs-chat-example/db"
 	"go-cqrs-chat-example/logger"
 	"go-cqrs-chat-example/utils"
-	"log/slog"
 	"slices"
 )
 
 type CommonProjection struct {
 	db                 *db.DB
-	slogLogger         *slog.Logger
+	lgr                *logger.LoggerWrapper
 	chatUserViewConfig *config.ChatUserViewConfig
 }
 
-func NewCommonProjection(db *db.DB, slogLogger *slog.Logger, cfg *config.AppConfig) *CommonProjection {
+func NewCommonProjection(db *db.DB, lgr *logger.LoggerWrapper, cfg *config.AppConfig) *CommonProjection {
 	return &CommonProjection{
 		db:                 db,
-		slogLogger:         slogLogger,
+		lgr:                lgr,
 		chatUserViewConfig: &cfg.ProjectionsConfig.ChatUserViewConfig,
 	}
 }
@@ -62,7 +61,7 @@ func (m *CommonProjection) InitializeChatIdSequenceIfNeed(ctx context.Context, t
 		}
 
 		if maxChatId > 0 {
-			m.slogLogger.Info("Fast-forwarding chatId sequence")
+			m.lgr.Info("Fast-forwarding chatId sequence")
 			_, err := tx.ExecContext(ctx, "SELECT setval('chat_id_sequence', $1, true)", maxChatId)
 			if err != nil {
 				return err
@@ -129,7 +128,7 @@ func (m *CommonProjection) InitializeMessageIdSequenceIfNeed(ctx context.Context
 		}
 
 		if maxMessageId > 0 {
-			m.slogLogger.Info("Fast-forwarding messageId sequence", "chat_id", chatId)
+			m.lgr.Info("Fast-forwarding messageId sequence", "chat_id", chatId)
 
 			_, err := tx.ExecContext(ctx, "update chat_common set last_generated_message_id = $2 where id = $1", chatId, maxMessageId)
 			if err != nil {
@@ -176,7 +175,7 @@ func (m *CommonProjection) OnChatCreated(ctx context.Context, event *ChatCreated
 	if err != nil {
 		return err
 	}
-	logger.LogWithTrace(ctx, m.slogLogger).Info(
+	m.lgr.WithTrace(ctx).Info(
 		"Common chat created",
 		"chat_id", event.ChatId,
 		"title", event.Title,
@@ -194,7 +193,7 @@ func (m *CommonProjection) OnChatEdited(ctx context.Context, event *ChatEdited) 
 	if err != nil {
 		return err
 	}
-	logger.LogWithTrace(ctx, m.slogLogger).Info(
+	m.lgr.WithTrace(ctx).Info(
 		"Common chat edited",
 		"chat_id", event.ChatId,
 		"title", event.Title,
@@ -211,7 +210,7 @@ func (m *CommonProjection) OnChatRemoved(ctx context.Context, event *ChatDeleted
 	if err != nil {
 		return err
 	}
-	logger.LogWithTrace(ctx, m.slogLogger).Info(
+	m.lgr.WithTrace(ctx).Info(
 		"Common chat removed",
 		"chat_id", event.ChatId,
 	)
@@ -235,7 +234,7 @@ func (m *CommonProjection) OnParticipantAdded(ctx context.Context, event *Partic
 			return err
 		}
 		if !exists {
-			m.slogLogger.Info("Skipping ParticipantsAdded because there is no chat", "chat_id", event.ChatId)
+			m.lgr.WithTrace(ctx).Info("Skipping ParticipantsAdded because there is no chat", "chat_id", event.ChatId)
 			return nil
 		}
 
@@ -307,7 +306,7 @@ func (m *CommonProjection) OnParticipantAdded(ctx context.Context, event *Partic
 		return errOuter
 	}
 
-	logger.LogWithTrace(ctx, m.slogLogger).Info(
+	m.lgr.WithTrace(ctx).Info(
 		"Participant added into common chat",
 		"user_id", event.ParticipantIds,
 		"chat_id", event.ChatId,
@@ -338,7 +337,7 @@ func (m *CommonProjection) OnParticipantRemoved(ctx context.Context, event *Part
 		return errOuter
 	}
 
-	logger.LogWithTrace(ctx, m.slogLogger).Info(
+	m.lgr.WithTrace(ctx).Info(
 		"Participant removed from common chat",
 		"user_id", event.ParticipantIds,
 		"chat_id", event.ChatId,
@@ -362,7 +361,7 @@ func (m *CommonProjection) OnMessageRemoved(ctx context.Context, event *MessageD
 		return errOuter
 	}
 
-	logger.LogWithTrace(ctx, m.slogLogger).Info(
+	m.lgr.WithTrace(ctx).Info(
 		"Message removed from common chat",
 		"message_id", event.MessageId,
 		"chat_id", event.ChatId,
@@ -381,7 +380,7 @@ func (m *CommonProjection) OnChatPinned(ctx context.Context, event *ChatPinned) 
 		return err
 	}
 
-	logger.LogWithTrace(ctx, m.slogLogger).Info(
+	m.lgr.WithTrace(ctx).Info(
 		"Chat pinned",
 		"user_id", event.ParticipantId,
 		"chat_id", event.ChatId,
@@ -400,7 +399,7 @@ func (m *CommonProjection) OnMessageCreated(ctx context.Context, event *MessageC
 	if err != nil {
 		return err
 	}
-	logger.LogWithTrace(ctx, m.slogLogger).Info(
+	m.lgr.WithTrace(ctx).Info(
 		"Handling message added",
 		"id", event.Id,
 		"user_id", event.OwnerId,
@@ -419,7 +418,7 @@ func (m *CommonProjection) OnMessageEdited(ctx context.Context, event *MessageEd
 	if err != nil {
 		return err
 	}
-	logger.LogWithTrace(ctx, m.slogLogger).Info(
+	m.lgr.WithTrace(ctx).Info(
 		"Handling message edited",
 		"id", event.Id,
 		"chat_id", event.ChatId,

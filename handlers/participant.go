@@ -5,23 +5,22 @@ import (
 	"go-cqrs-chat-example/cqrs"
 	"go-cqrs-chat-example/logger"
 	"go-cqrs-chat-example/utils"
-	"log/slog"
 	"net/http"
 )
 
 type ParticipantHandler struct {
-	slogLogger       *slog.Logger
+	lgr              *logger.LoggerWrapper
 	eventBus         *cqrs.PartitionAwareEventBus
 	commonProjection *cqrs.CommonProjection
 }
 
 func NewParticipantHandler(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	eventBus *cqrs.PartitionAwareEventBus,
 	commonProjection *cqrs.CommonProjection,
 ) *ParticipantHandler {
 	return &ParticipantHandler{
-		slogLogger:       slogLogger,
+		lgr:              lgr,
 		eventBus:         eventBus,
 		commonProjection: commonProjection,
 	}
@@ -32,7 +31,7 @@ func (ch *ParticipantHandler) AddParticipant(g *gin.Context) {
 
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), ch.slogLogger).Error("Error binding chatId", "err", err)
+		ch.lgr.WithTrace(g.Request.Context()).Error("Error binding chatId", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -41,7 +40,7 @@ func (ch *ParticipantHandler) AddParticipant(g *gin.Context) {
 
 	err = g.Bind(ccd)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), ch.slogLogger).Error("Error binding ParticipantAddDto", "err", err)
+		ch.lgr.WithTrace(g.Request.Context()).Error("Error binding ParticipantAddDto", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -54,7 +53,7 @@ func (ch *ParticipantHandler) AddParticipant(g *gin.Context) {
 
 	err = cc.Handle(g.Request.Context(), ch.eventBus, ch.commonProjection)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), ch.slogLogger).Error("Error sending ParticipantAdd command", "err", err)
+		ch.lgr.WithTrace(g.Request.Context()).Error("Error sending ParticipantAdd command", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -67,7 +66,7 @@ func (ch *ParticipantHandler) DeleteParticipant(g *gin.Context) {
 
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), ch.slogLogger).Error("Error binding chatId", "err", err)
+		ch.lgr.WithTrace(g.Request.Context()).Error("Error binding chatId", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -76,7 +75,7 @@ func (ch *ParticipantHandler) DeleteParticipant(g *gin.Context) {
 
 	err = g.Bind(ccd)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), ch.slogLogger).Error("Error binding ParticipantDeleteDto", "err", err)
+		ch.lgr.WithTrace(g.Request.Context()).Error("Error binding ParticipantDeleteDto", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -89,7 +88,7 @@ func (ch *ParticipantHandler) DeleteParticipant(g *gin.Context) {
 
 	err = cc.Handle(g.Request.Context(), ch.eventBus, ch.commonProjection)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), ch.slogLogger).Error("Error sending ParticipantDelete command", "err", err)
+		ch.lgr.WithTrace(g.Request.Context()).Error("Error sending ParticipantDelete command", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -102,14 +101,14 @@ func (ch *ParticipantHandler) GetParticipants(g *gin.Context) {
 
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), ch.slogLogger).Error("Error binding chatId", "err", err)
+		ch.lgr.WithTrace(g.Request.Context()).Error("Error binding chatId", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
 
 	participants, err := ch.commonProjection.GetParticipants(g.Request.Context(), chatId)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), ch.slogLogger).Error("Error getting participants", "err", err)
+		ch.lgr.WithTrace(g.Request.Context()).Error("Error getting participants", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}

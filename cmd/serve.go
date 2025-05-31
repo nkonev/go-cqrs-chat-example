@@ -10,6 +10,7 @@ import (
 	"go-cqrs-chat-example/db"
 	"go-cqrs-chat-example/handlers"
 	"go-cqrs-chat-example/kafka"
+	"go-cqrs-chat-example/logger"
 	"go-cqrs-chat-example/otel"
 	"go.uber.org/fx"
 	"log/slog"
@@ -41,14 +42,16 @@ func init() {
 }
 
 func RunServe() {
-	slogLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+	baseLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	}))
 
-	slogLogger.Info("Start serve command")
+	lgr := logger.NewLogger(baseLogger)
+
+	lgr.Info("Start serve command")
 
 	appFx := fx.New(
-		fx.Supply(slogLogger),
+		fx.Supply(lgr),
 		fx.Provide(
 			config.CreateTypedConfig,
 			otel.ConfigureTracePropagator,
@@ -80,5 +83,5 @@ func RunServe() {
 		),
 	)
 	appFx.Run()
-	slogLogger.Info("Exit serve command")
+	lgr.Info("Exit serve command")
 }

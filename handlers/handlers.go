@@ -10,7 +10,6 @@ import (
 	"go-cqrs-chat-example/utils"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/fx"
-	"log/slog"
 	"net/http"
 	"time"
 )
@@ -49,7 +48,7 @@ func getUserId(g *gin.Context) (int64, error) {
 
 func ConfigureHttpServer(
 	cfg *config.AppConfig,
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	lc fx.Lifecycle,
 	chatHandler *ChatHandler,
 	participantHandler *ParticipantHandler,
@@ -59,7 +58,7 @@ func ConfigureHttpServer(
 	gin.SetMode(gin.ReleaseMode)
 	ginRouter := gin.New()
 	ginRouter.Use(otelgin.Middleware(app.TRACE_RESOURCE))
-	ginRouter.Use(StructuredLogMiddleware(slogLogger))
+	ginRouter.Use(StructuredLogMiddleware(lgr))
 	ginRouter.Use(WriteTraceToHeaderMiddleware())
 	ginRouter.Use(gin.Recovery())
 
@@ -75,10 +74,10 @@ func ConfigureHttpServer(
 
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
-			slogLogger.Info("Stopping http server")
+			lgr.Info("Stopping http server")
 
 			if err := httpServer.Shutdown(context.Background()); err != nil {
-				slogLogger.Error("Error shutting http server", "err", err)
+				lgr.Error("Error shutting http server", "err", err)
 			}
 			return nil
 		},
@@ -86,9 +85,10 @@ func ConfigureHttpServer(
 
 	return httpServer
 }
-func StructuredLogMiddleware(slogLogger *slog.Logger) gin.HandlerFunc {
+func StructuredLogMiddleware(lgr *logger.LoggerWrapper) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		traceId := logger.GetTraceId(c.Request.Context())
+		ctx := c.Request.Context()
+		traceId := logger.GetTraceId(ctx)
 
 		// Start timer
 		start := time.Now()
@@ -112,9 +112,9 @@ func StructuredLogMiddleware(slogLogger *slog.Logger) gin.HandlerFunc {
 		}
 
 		if c.Writer.Status() >= 500 {
-			slogLogger.Error("Request", entries...)
+			lgr.Error("Request", entries...)
 		} else {
-			slogLogger.Info("Request", entries...)
+			lgr.Info("Request", entries...)
 		}
 	}
 }
@@ -132,15 +132,15 @@ func WriteTraceToHeaderMiddleware() gin.HandlerFunc {
 }
 
 func RunHttpServer(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	httpServer *http.Server,
 ) {
 	go func() {
 		err := httpServer.ListenAndServe()
 		if errors.Is(err, http.ErrServerClosed) {
-			slogLogger.Info("Http server is closed")
+			lgr.Info("Http server is closed")
 		} else if err != nil {
-			slogLogger.Error("Got http server error", "err", err)
+			lgr.Error("Got http server error", "err", err)
 		}
 	}()
 }

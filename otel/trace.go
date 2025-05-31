@@ -4,6 +4,7 @@ import (
 	"context"
 	"go-cqrs-chat-example/app"
 	"go-cqrs-chat-example/config"
+	"go-cqrs-chat-example/logger"
 	jaegerPropagator "go.opentelemetry.io/contrib/propagators/jaeger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
@@ -15,7 +16,6 @@ import (
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"log/slog"
 )
 
 func ConfigureTracePropagator() propagation.TextMapPropagator {
@@ -23,7 +23,7 @@ func ConfigureTracePropagator() propagation.TextMapPropagator {
 }
 
 func ConfigureTraceProvider(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	propagator propagation.TextMapPropagator,
 	exporter *otlptrace.Exporter,
 	lc fx.Lifecycle,
@@ -45,9 +45,9 @@ func ConfigureTraceProvider(
 
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
-			slogLogger.Info("Stopping trace provider")
+			lgr.Info("Stopping trace provider")
 			if err := tp.Shutdown(context.Background()); err != nil {
-				slogLogger.Error("Error shutting trace provider", "err", err)
+				lgr.Error("Error shutting trace provider", "err", err)
 			}
 			return nil
 		},
@@ -56,7 +56,7 @@ func ConfigureTraceProvider(
 }
 
 func ConfigureTraceExporter(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	cfg *config.AppConfig,
 	lc fx.Lifecycle,
 ) (*otlptrace.Exporter, error) {
@@ -67,14 +67,14 @@ func ConfigureTraceExporter(
 	exporter, err := otlptracegrpc.New(context.Background(), otlptracegrpc.WithGRPCConn(traceExporterConn))
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
-			slogLogger.Info("Stopping trace exporter")
+			lgr.Info("Stopping trace exporter")
 
 			if err := exporter.Shutdown(ctx); err != nil {
-				slogLogger.Error("Error shutting down trace exporter", "err", err)
+				lgr.Error("Error shutting down trace exporter", "err", err)
 			}
 
 			if err := traceExporterConn.Close(); err != nil {
-				slogLogger.Error("Error shutting down trace exporter connection", "err", err)
+				lgr.Error("Error shutting down trace exporter connection", "err", err)
 			}
 			return nil
 		},

@@ -22,18 +22,18 @@ import (
 )
 
 func ConfigureKafkaMarshaller(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 ) kafka.MarshalerUnmarshaler {
 	// This marshaler converts Watermill messages to Kafka messages.
 	// We are using it to add partition key to the Kafka message.
-	return kafka.NewWithPartitioningMarshaler(GenerateKafkaPartitionKey(slogLogger))
+	return kafka.NewWithPartitioningMarshaler(GenerateKafkaPartitionKey(lgr))
 }
 
 func ConfigureWatermillLogger(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 ) watermill.LoggerAdapter {
 	return watermill.NewSlogLoggerWithLevelMapping(
-		slogLogger.With("watermill", true),
+		lgr.With("watermill", true),
 		map[slog.Level]slog.Level{
 			slog.LevelInfo: slog.LevelDebug,
 		},
@@ -75,7 +75,7 @@ func ConfigurePublisher(
 }
 
 func ConfigureCqrsRouter(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	watermillLoggerAdapter watermill.LoggerAdapter,
 	propagator propagation.TextMapPropagator,
 	tp *sdktrace.TracerProvider,
@@ -100,7 +100,7 @@ func ConfigureCqrsRouter(
 	cqrsRouter.AddMiddleware(func(h message.HandlerFunc) message.HandlerFunc {
 		return func(msg *message.Message) ([]*message.Message, error) {
 			if cfg.CqrsConfig.SleepBeforeEvent > 0 {
-				logger.LogWithTrace(msg.Context(), slogLogger).Info("Sleeping")
+				lgr.WithTrace(msg.Context()).Info("Sleeping")
 				time.Sleep(cfg.CqrsConfig.SleepBeforeEvent)
 			}
 
@@ -113,10 +113,10 @@ func ConfigureCqrsRouter(
 
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
-			slogLogger.Info("Stopping cqrs router")
+			lgr.Info("Stopping cqrs router")
 
 			if err := cqrsRouter.Close(); err != nil {
-				slogLogger.Error("Error shutting down router", "err", err)
+				lgr.Error("Error shutting down router", "err", err)
 			}
 			return nil
 		},
@@ -126,16 +126,16 @@ func ConfigureCqrsRouter(
 }
 
 func RunCqrsRouter(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	cqrsRouter *message.Router,
 	processor *cqrs.EventGroupProcessor,
 ) error {
 	go func() {
-		slogLogger.Info("Starting CQRS router with a given Event Processor", "eventProcessor", fmt.Sprintf("%T", processor)) // to configure it before this
+		lgr.Info("Starting CQRS router with a given Event Processor", "eventProcessor", fmt.Sprintf("%T", processor)) // to configure it before this
 
 		err := cqrsRouter.Run(context.Background())
 		if err != nil {
-			slogLogger.Error("Got cqrs error", "err", err)
+			lgr.Error("Got cqrs error", "err", err)
 		}
 	}()
 	return nil
@@ -247,10 +247,10 @@ func ConfigureEventProcessor(
 
 func ConfigureCommonProjection(
 	dba *db.DB,
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	cfg *config.AppConfig,
 ) *CommonProjection {
-	return NewCommonProjection(dba, slogLogger, cfg)
+	return NewCommonProjection(dba, lgr, cfg)
 }
 
 func SetIsNeedToFastForwardSequences(commonProjection *CommonProjection) error {
@@ -258,13 +258,13 @@ func SetIsNeedToFastForwardSequences(commonProjection *CommonProjection) error {
 }
 
 func RunSequenceFastforwarder(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	commonProjection *CommonProjection,
 	dba *db.DB,
 ) error {
 	ctx := context.Background()
 
-	slogLogger.Info("Attempting to fast-forward sequences")
+	lgr.Info("Attempting to fast-forward sequences")
 	txErr := db.Transact(ctx, dba, func(tx *db.Tx) error {
 		xerr := commonProjection.SetXactFastForwardSequenceLock(ctx, tx)
 		if xerr != nil {
@@ -276,37 +276,37 @@ func RunSequenceFastforwarder(
 			return gxerr
 		}
 		if !stillNeedFastForwardSequences {
-			slogLogger.Info("Now is not need to fast-forward sequences")
+			lgr.Info("Now is not need to fast-forward sequences")
 			return nil
 		}
 
 		errI0 := commonProjection.InitializeChatIdSequenceIfNeed(ctx, tx)
 		if errI0 != nil {
-			slogLogger.Error("Error during setting message id sequences", "err", errI0)
+			lgr.Error("Error during setting message id sequences", "err", errI0)
 			return errI0
 		}
 
 		chatIds, errI1 := commonProjection.GetChatIds(ctx, tx) // TODO paginate
 		if errI1 != nil {
-			slogLogger.Error("Error during getting all chats", "err", errI1)
+			lgr.Error("Error during getting all chats", "err", errI1)
 			return errI1
 		}
 
 		for _, chatId := range chatIds {
 			errI2 := commonProjection.InitializeMessageIdSequenceIfNeed(ctx, tx, chatId)
 			if errI2 != nil {
-				slogLogger.Error("Error during setting message id sequences", "err", errI2)
+				lgr.Error("Error during setting message id sequences", "err", errI2)
 				return errI2
 			}
 		}
 
 		errU := commonProjection.UnsetIsNeedToFastForwardSequences(ctx, tx)
 		if errU != nil {
-			slogLogger.Error("Error during removing need fast-forward sequences", "err", errU)
+			lgr.Error("Error during removing need fast-forward sequences", "err", errU)
 			return errU
 		}
 
-		slogLogger.Info("All the sequences was fast-forwarded successfully")
+		lgr.Info("All the sequences was fast-forwarded successfully")
 
 		return nil
 	})

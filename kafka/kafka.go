@@ -8,17 +8,17 @@ import (
 	"github.com/IBM/sarama"
 	"github.com/Jeffail/gabs/v2"
 	"go-cqrs-chat-example/config"
+	"go-cqrs-chat-example/logger"
 	"go-cqrs-chat-example/utils"
 	"go.uber.org/fx"
 	"io"
-	"log/slog"
 	"os"
 	"strings"
 	"time"
 )
 
 func ConfigureKafkaAdmin(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	cfg *config.AppConfig,
 	lc fx.Lifecycle,
 ) (sarama.ClusterAdmin, error) {
@@ -32,10 +32,10 @@ func ConfigureKafkaAdmin(
 
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
-			slogLogger.Info("Stopping kafka admin")
+			lgr.Info("Stopping kafka admin")
 
 			if err := kafkaAdmin.Close(); err != nil {
-				slogLogger.Error("Error shutting down kafka admin", "err", err)
+				lgr.Error("Error shutting down kafka admin", "err", err)
 			}
 			return nil
 		},
@@ -45,13 +45,13 @@ func ConfigureKafkaAdmin(
 }
 
 func RunCreateTopic(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	cfg *config.AppConfig,
 	kafkaAdmin sarama.ClusterAdmin,
 ) error {
 	retention := cfg.KafkaConfig.Retention
 	topicName := cfg.KafkaConfig.Topic
-	slogLogger.Info("Creating topic", "topic", topicName)
+	lgr.Info("Creating topic", "topic", topicName)
 
 	err := kafkaAdmin.CreateTopic(topicName, &sarama.TopicDetail{
 		NumPartitions:     cfg.KafkaConfig.NumPartitions,
@@ -62,58 +62,58 @@ func RunCreateTopic(
 		},
 	}, false)
 	if errors.Is(err, sarama.ErrTopicAlreadyExists) {
-		slogLogger.Info("Topic is already exists", "topic", topicName)
+		lgr.Info("Topic is already exists", "topic", topicName)
 	} else if err != nil {
 		return err
 	} else {
-		slogLogger.Info("Topic was successfully created", "topic", topicName)
+		lgr.Info("Topic was successfully created", "topic", topicName)
 	}
 
 	return nil
 }
 
 func RunDeleteTopic(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	cfg *config.AppConfig,
 	kafkaAdmin sarama.ClusterAdmin,
 ) error {
-	slogLogger.Warn("Removing topic", "topic", cfg.KafkaConfig.Topic)
+	lgr.Warn("Removing topic", "topic", cfg.KafkaConfig.Topic)
 	err := kafkaAdmin.DeleteTopic(cfg.KafkaConfig.Topic)
 	if err != nil {
 		if errors.Is(err, sarama.ErrUnknownTopicOrPartition) {
-			slogLogger.Warn("Topic does not exists", "topic", cfg.KafkaConfig.Topic)
+			lgr.Warn("Topic does not exists", "topic", cfg.KafkaConfig.Topic)
 		} else {
 			return err
 		}
 	}
-	slogLogger.Warn("Topic was removed", "topic", cfg.KafkaConfig.Topic)
+	lgr.Warn("Topic was removed", "topic", cfg.KafkaConfig.Topic)
 	return nil
 }
 
 func RunResetPartitions(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	cfg *config.AppConfig,
 	kafkaAdmin sarama.ClusterAdmin,
 ) error {
-	slogLogger.Info("Start reset partitions")
+	lgr.Info("Start reset partitions")
 
 	err := kafkaAdmin.DeleteConsumerGroup(cfg.KafkaConfig.ConsumerGroup)
 
 	if err != nil {
 		if strings.Contains(err.Error(), "The group id does not exist") {
-			slogLogger.Info("There is no consumer group", "consumer_group", cfg.KafkaConfig.ConsumerGroup)
+			lgr.Info("There is no consumer group", "consumer_group", cfg.KafkaConfig.ConsumerGroup)
 		} else {
 			return err
 		}
 	}
 
-	slogLogger.Info("Finished reset partitions")
+	lgr.Info("Finished reset partitions")
 
 	return nil
 }
 
 func ConfigureSaramaClient(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	cfg *config.AppConfig,
 	lc fx.Lifecycle,
 ) (sarama.Client, error) {
@@ -127,9 +127,9 @@ func ConfigureSaramaClient(
 
 	lc.Append(fx.Hook{
 		OnStop: func(ctx0 context.Context) error {
-			slogLogger.Info("Stopping kafka client")
+			lgr.Info("Stopping kafka client")
 			ce := client.Close()
-			slogLogger.Info("Kafka client stopped", "err", ce)
+			lgr.Info("Kafka client stopped", "err", ce)
 
 			return nil
 		},
@@ -139,7 +139,7 @@ func ConfigureSaramaClient(
 }
 
 func WaitForAllEventsProcessed(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	cfg *config.AppConfig,
 	saramaClient sarama.Client,
 	lc fx.Lifecycle,
@@ -148,7 +148,7 @@ func WaitForAllEventsProcessed(
 
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
-			slogLogger.Info("Stopping waiter")
+			lgr.Info("Stopping waiter")
 			cancelFunc()
 			return nil
 		},
@@ -157,24 +157,24 @@ func WaitForAllEventsProcessed(
 	du := cfg.CqrsConfig.CheckAreEventsProcessedInterval
 
 	for {
-		slogLogger.Info("Checking for the current offsets will be equal to the latest ones for all partitions")
-		isEnd, errE := isEndOnAllPartitions(slogLogger, cfg, saramaClient)
+		lgr.Info("Checking for the current offsets will be equal to the latest ones for all partitions")
+		isEnd, errE := isEndOnAllPartitions(lgr, cfg, saramaClient)
 		if errE != nil {
-			slogLogger.Error("Error during checking isEndOnAllPartitions", "err", errE)
+			lgr.Error("Error during checking isEndOnAllPartitions", "err", errE)
 			return errE
 		}
 		if isEnd {
-			slogLogger.Info("All the events was processed")
+			lgr.Info("All the events was processed")
 			cancelFunc()
 		} else {
-			slogLogger.Info("The current offsets still aren't equal to the latest ones")
+			lgr.Info("The current offsets still aren't equal to the latest ones")
 		}
 
 		if errors.Is(stoppingCtx.Err(), context.Canceled) {
-			slogLogger.Info("Exiting from waiter")
+			lgr.Info("Exiting from waiter")
 			break
 		} else {
-			slogLogger.Info("Will wait before the next check iteration", "duration", du)
+			lgr.Info("Will wait before the next check iteration", "duration", du)
 			time.Sleep(du)
 		}
 	}
@@ -183,7 +183,7 @@ func WaitForAllEventsProcessed(
 }
 
 func getMaxOffsets(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	cfg *config.AppConfig,
 	client sarama.Client,
 ) ([]int64, error) {
@@ -195,18 +195,18 @@ func getMaxOffsets(
 			return maxOffsets, err
 		}
 		maxOffsets[i] = offset
-		slogLogger.Debug("Got max", "partition", i, "offset", offset)
+		lgr.Debug("Got max", "partition", i, "offset", offset)
 	}
 	return maxOffsets, nil
 }
 
 func isEndOnAllPartitions(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	cfg *config.AppConfig,
 	client sarama.Client,
 ) (bool, error) {
 
-	maxOffsets, err := getMaxOffsets(slogLogger, cfg, client)
+	maxOffsets, err := getMaxOffsets(lgr, cfg, client)
 	if err != nil {
 		if errors.Is(err, sarama.ErrNotLeaderForPartition) {
 			return false, nil
@@ -237,7 +237,7 @@ func isEndOnAllPartitions(
 		partitionManager, err := offsetManager.ManagePartition(cfg.KafkaConfig.Topic, i)
 		if err != nil {
 			if errors.Is(err, sarama.ErrIncompleteResponse) {
-				slogLogger.Info("Skipping partition", "partition", i)
+				lgr.Info("Skipping partition", "partition", i)
 				return false, nil
 			}
 			return false, err
@@ -249,7 +249,7 @@ func isEndOnAllPartitions(
 			return false, err
 		}
 		givenOffsets[i] = offs
-		slogLogger.Debug("Got given", "partition", i, "offset", offs)
+		lgr.Debug("Got given", "partition", i, "offset", offs)
 	}
 
 	hasOneInitialized := false
@@ -276,12 +276,12 @@ const MetadataPartitionKey = "partition"
 const HeadersKey = "headers"
 
 func Export(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	cfg *config.AppConfig,
 	saramaClient sarama.Client,
 ) error {
 
-	maxOffsets, err := getMaxOffsets(slogLogger, cfg, saramaClient)
+	maxOffsets, err := getMaxOffsets(lgr, cfg, saramaClient)
 	if err != nil {
 		return err
 	}
@@ -313,11 +313,11 @@ func Export(
 	for i := range cfg.KafkaConfig.NumPartitions {
 		partitionMaxOffset := maxOffsets[i]
 		if partitionMaxOffset == 0 {
-			slogLogger.Info("Skipping partition because absence of messages", "partition", i)
+			lgr.Info("Skipping partition because absence of messages", "partition", i)
 			continue
 		}
 
-		slogLogger.Info("Reading partition and it's max offset", "partition", i, "offset", partitionMaxOffset)
+		lgr.Info("Reading partition and it's max offset", "partition", i, "offset", partitionMaxOffset)
 
 		partitionConsumer, err := newConsumer.ConsumePartition(cfg.KafkaConfig.Topic, i, sarama.OffsetOldest)
 		if err != nil {
@@ -368,18 +368,18 @@ func Export(
 			}
 
 			if kafkaMessage.Offset >= partitionMaxOffset-1 {
-				slogLogger.Info("Reached max offset, closing partitionConsumer", "partition", i)
+				lgr.Info("Reached max offset, closing partitionConsumer", "partition", i)
 				break
 			}
 		}
 
-		slogLogger.Info("Finish reading partition", "partition", i)
+		lgr.Info("Finish reading partition", "partition", i)
 	}
 	return nil
 }
 
 func Import(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	cfg *config.AppConfig,
 ) error {
 	config := sarama.NewConfig()
@@ -455,6 +455,6 @@ func Import(
 		}
 	}
 
-	slogLogger.Info("Import was successfully finished")
+	lgr.Info("Import was successfully finished")
 	return nil
 }

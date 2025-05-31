@@ -10,6 +10,7 @@ import (
 	"go-cqrs-chat-example/db"
 	"go-cqrs-chat-example/handlers"
 	"go-cqrs-chat-example/kafka"
+	"go-cqrs-chat-example/logger"
 	"go-cqrs-chat-example/otel"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
@@ -34,10 +35,10 @@ func shutdown() {
 
 }
 
-func resetInfra(slogLogger *slog.Logger) {
+func resetInfra(lgr *logger.LoggerWrapper) {
 	appFx := fx.New(
 		fx.Supply(
-			slogLogger,
+			lgr,
 		),
 		fx.Provide(
 			config.CreateTypedConfig,
@@ -58,12 +59,12 @@ func resetInfra(slogLogger *slog.Logger) {
 	appFx.Run()
 }
 
-func runTestFunc(slogLogger *slog.Logger, t *testing.T, testFunc interface{}) {
+func runTestFunc(lgr *logger.LoggerWrapper, t *testing.T, testFunc interface{}) {
 	var s fx.Shutdowner
 	appTestFx := fxtest.New(
 		t,
 		fx.Supply(
-			slogLogger,
+			lgr,
 		),
 		fx.Populate(&s),
 		fx.Provide(
@@ -100,16 +101,17 @@ func runTestFunc(slogLogger *slog.Logger, t *testing.T, testFunc interface{}) {
 }
 
 func startAppFull(t *testing.T, testFunc interface{}) {
-	slogLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+	baseLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelDebug,
 	}))
+	lgr := logger.NewLogger(baseLogger)
 
-	resetInfra(slogLogger)
+	resetInfra(lgr)
 
-	runTestFunc(slogLogger, t, testFunc)
+	runTestFunc(lgr, t, testFunc)
 }
 
-func waitForHealthCheck(slogLogger *slog.Logger, restClient *client.RestClient, cfg *config.AppConfig) {
+func waitForHealthCheck(lgr *logger.LoggerWrapper, restClient *client.RestClient, cfg *config.AppConfig) {
 	ctx := context.Background()
 
 	i := 0
@@ -118,7 +120,7 @@ func waitForHealthCheck(slogLogger *slog.Logger, restClient *client.RestClient, 
 	for ; i <= maxAttempts; i++ {
 		err := restClient.HealthCheck(ctx)
 		if err != nil {
-			slogLogger.Info("Awaiting while chat have been started")
+			lgr.Info("Awaiting while chat have been started")
 			time.Sleep(time.Second * 1)
 			continue
 		} else {
@@ -129,5 +131,5 @@ func waitForHealthCheck(slogLogger *slog.Logger, restClient *client.RestClient, 
 	if !success {
 		panic("Cannot await for chat will be started")
 	}
-	slogLogger.Info("chat have started")
+	lgr.Info("chat have started")
 }

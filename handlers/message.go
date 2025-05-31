@@ -6,25 +6,24 @@ import (
 	"go-cqrs-chat-example/db"
 	"go-cqrs-chat-example/logger"
 	"go-cqrs-chat-example/utils"
-	"log/slog"
 	"net/http"
 )
 
 type MessageHandler struct {
-	slogLogger       *slog.Logger
+	lgr              *logger.LoggerWrapper
 	eventBus         *cqrs.PartitionAwareEventBus
 	dbWrapper        *db.DB
 	commonProjection *cqrs.CommonProjection
 }
 
 func NewMessageHandler(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	eventBus *cqrs.PartitionAwareEventBus,
 	dbWrapper *db.DB,
 	commonProjection *cqrs.CommonProjection,
 ) *MessageHandler {
 	return &MessageHandler{
-		slogLogger:       slogLogger,
+		lgr:              lgr,
 		eventBus:         eventBus,
 		dbWrapper:        dbWrapper,
 		commonProjection: commonProjection,
@@ -36,14 +35,14 @@ func (mc *MessageHandler) CreateMessage(g *gin.Context) {
 
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error binding chatId", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error binding chatId", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
 
 	userId, err := getUserId(g)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error parsing UserId", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error parsing UserId", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -52,7 +51,7 @@ func (mc *MessageHandler) CreateMessage(g *gin.Context) {
 
 	err = g.Bind(mcd)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error binding MessageCreateDto", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error binding MessageCreateDto", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -66,7 +65,7 @@ func (mc *MessageHandler) CreateMessage(g *gin.Context) {
 
 	mid, err := cc.Handle(g.Request.Context(), mc.eventBus, mc.dbWrapper, mc.commonProjection)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error sending MessageCreate command", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error sending MessageCreate command", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -80,14 +79,14 @@ func (mc *MessageHandler) EditMessage(g *gin.Context) {
 	cid := g.Param("id")
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error binding chatId", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error binding chatId", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
 
 	userId, err := getUserId(g)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error parsing UserId", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error parsing UserId", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -96,7 +95,7 @@ func (mc *MessageHandler) EditMessage(g *gin.Context) {
 
 	err = g.Bind(ccd)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error binding MessageEditDto", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error binding MessageEditDto", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -110,7 +109,7 @@ func (mc *MessageHandler) EditMessage(g *gin.Context) {
 
 	err = cc.Handle(g.Request.Context(), mc.eventBus, mc.commonProjection, userId)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error sending MessageEdit command", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error sending MessageEdit command", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -122,7 +121,7 @@ func (mc *MessageHandler) DeleteMessage(g *gin.Context) {
 	cid := g.Param("id")
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error binding chatId", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error binding chatId", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -130,14 +129,14 @@ func (mc *MessageHandler) DeleteMessage(g *gin.Context) {
 	mid := g.Param("messageId")
 	messageId, err := utils.ParseInt64(mid)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error binding messageId", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error binding messageId", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
 
 	userId, err := getUserId(g)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error parsing UserId", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error parsing UserId", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -150,7 +149,7 @@ func (mc *MessageHandler) DeleteMessage(g *gin.Context) {
 
 	err = cc.Handle(g.Request.Context(), mc.eventBus, mc.commonProjection, userId)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error sending MessageDelete command", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error sending MessageDelete command", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -163,7 +162,7 @@ func (mc *MessageHandler) ReadMessage(g *gin.Context) {
 
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error binding chatId", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error binding chatId", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -172,14 +171,14 @@ func (mc *MessageHandler) ReadMessage(g *gin.Context) {
 
 	messageId, err := utils.ParseInt64(mid)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error binding messageId", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error binding messageId", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
 
 	userId, err := getUserId(g)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error parsing UserId", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error parsing UserId", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -193,7 +192,7 @@ func (mc *MessageHandler) ReadMessage(g *gin.Context) {
 
 	err = mr.Handle(g.Request.Context(), mc.eventBus, mc.commonProjection)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error sending MessageRead command", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error sending MessageRead command", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
@@ -206,14 +205,14 @@ func (mc *MessageHandler) SearchMessages(g *gin.Context) {
 
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error binding chatId", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error binding chatId", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
 
 	messages, err := mc.commonProjection.GetMessages(g.Request.Context(), chatId)
 	if err != nil {
-		logger.LogWithTrace(g.Request.Context(), mc.slogLogger).Error("Error getting messages", "err", err)
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error getting messages", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}

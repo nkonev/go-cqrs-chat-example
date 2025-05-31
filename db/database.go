@@ -17,13 +17,12 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	"go.uber.org/fx"
-	"log/slog"
 	"net/http"
 	"strings"
 	"time"
 )
 
-func makeLoggingDriver(cfg *config.AppConfig, slogLogger *slog.Logger) driver.Driver {
+func makeLoggingDriver(cfg *config.AppConfig, lgr *logger.LoggerWrapper) driver.Driver {
 	return proxy.NewProxyContext(&pgxStd.Driver{}, &proxy.HooksContext{
 		PreExec: func(_ context.Context, _ *proxy.Stmt, _ []driver.NamedValue) (interface{}, error) {
 			return time.Now(), nil
@@ -33,7 +32,7 @@ func makeLoggingDriver(cfg *config.AppConfig, slogLogger *slog.Logger) driver.Dr
 			if cfg.PostgreSQLConfig.PrettyLog {
 				fmt.Println("[SQL] trace_id=" + logger.GetTraceId(c) + ": " + s)
 			} else {
-				logger.LogWithTrace(c, slogLogger).Debug(s)
+				lgr.WithTrace(c).Debug(s)
 			}
 			return err
 		},
@@ -46,7 +45,7 @@ func makeLoggingDriver(cfg *config.AppConfig, slogLogger *slog.Logger) driver.Dr
 			if cfg.PostgreSQLConfig.PrettyLog {
 				fmt.Println("[SQL] trace_id=" + logger.GetTraceId(c) + ": " + s)
 			} else {
-				logger.LogWithTrace(c, slogLogger).Debug(s)
+				lgr.WithTrace(c).Debug(s)
 			}
 			return err
 		},
@@ -71,12 +70,12 @@ func writeNamedValues(args []driver.NamedValue) string {
 
 type DB struct {
 	*sql.DB
-	lgr *slog.Logger
+	lgr *logger.LoggerWrapper
 }
 
 type Tx struct {
 	*sql.Tx
-	lgr *slog.Logger
+	lgr *logger.LoggerWrapper
 }
 
 type CommonOperations interface {
@@ -110,7 +109,7 @@ func (txR *Tx) ExecContext(ctx context.Context, query string, args ...interface{
 }
 
 // Begin starts and returns a new transaction.
-func (db *DB) Begin(ctx context.Context, lgr *slog.Logger) (*Tx, error) {
+func (db *DB) Begin(ctx context.Context, lgr *logger.LoggerWrapper) (*Tx, error) {
 	if tx, err := db.DB.BeginTx(ctx, nil); err != nil {
 		return nil, fmt.Errorf("error during interacting with db: %w", err)
 	} else {
@@ -163,12 +162,12 @@ func Transact(ctx context.Context, db *DB, txFunc func(*Tx) error) (err error) {
 }
 
 func ConfigureDatabase(
-	slogLogger *slog.Logger,
+	lgr *logger.LoggerWrapper,
 	cfg *config.AppConfig,
 	tp *sdktrace.TracerProvider,
 	lc fx.Lifecycle,
 ) (*DB, error) {
-	dri := makeLoggingDriver(cfg, slogLogger)
+	dri := makeLoggingDriver(cfg, lgr)
 
 	otDriver := otelsql.WrapDriver(dri, otelsql.WithAttributes(
 		semconv.DBSystemPostgreSQL,
@@ -197,14 +196,14 @@ func ConfigureDatabase(
 
 	dbWrapper := &DB{
 		DB:  db,
-		lgr: slogLogger,
+		lgr: lgr,
 	}
 
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
-			slogLogger.Info("Stopping database")
+			lgr.Info("Stopping database")
 			if err := db.Close(); err != nil {
-				slogLogger.Error("Error shutting down database", "err", err)
+				lgr.Error("Error shutting down database", "err", err)
 			}
 			return nil
 		},

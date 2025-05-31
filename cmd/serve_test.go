@@ -8,14 +8,14 @@ import (
 	"go-cqrs-chat-example/config"
 	"go-cqrs-chat-example/cqrs"
 	"go-cqrs-chat-example/kafka"
+	"go-cqrs-chat-example/logger"
 	"go.uber.org/fx"
-	"log/slog"
 	"testing"
 )
 
 func TestUnreads(t *testing.T) {
 	startAppFull(t, func(
-		slogLogger *slog.Logger,
+		lgr *logger.LoggerWrapper,
 		cfg *config.AppConfig,
 		restClient *client.RestClient,
 		saramaClient sarama.Client,
@@ -32,7 +32,7 @@ func TestUnreads(t *testing.T) {
 		chat1Id, err := restClient.CreateChat(ctx, user1, chat1Name)
 		assert.NoError(t, err, "error in creating chat")
 		assert.True(t, chat1Id > 0)
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		title, err := m.GetChatByUserIdAndChatId(ctx, user1, chat1Id)
 		assert.NoError(t, err, "error in getting chat")
@@ -42,7 +42,7 @@ func TestUnreads(t *testing.T) {
 
 		message1Id, err := restClient.CreateMessage(ctx, user1, chat1Id, message1Text)
 		assert.NoError(t, err, "error in creating message")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		user1Chats, err := restClient.GetChatsByUserId(ctx, user1)
 		assert.NoError(t, err, "error in getting chats")
@@ -68,7 +68,7 @@ func TestUnreads(t *testing.T) {
 
 		err = restClient.AddChatParticipants(ctx, chat1Id, []int64{user2, user3})
 		assert.NoError(t, err, "error in adding participants")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		chat1Participants, err := restClient.GetChatParticipants(ctx, chat1Id)
 		assert.NoError(t, err, "error in chat participants")
@@ -90,7 +90,7 @@ func TestUnreads(t *testing.T) {
 
 		err = restClient.ReadMessage(ctx, user2, chat1Id, message1.Id)
 		assert.NoError(t, err, "error in reading message")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		user2ChatsNew2, err := restClient.GetChatsByUserId(ctx, user2)
 		assert.NoError(t, err, "error in getting chats")
@@ -112,7 +112,7 @@ func TestUnreads(t *testing.T) {
 		messageId3, err := restClient.CreateMessage(ctx, user1, chat1Id, message3Text)
 		assert.NoError(t, err, "error in creating message")
 		assert.True(t, messageId3 > 0)
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		user2ChatsNew3, err := restClient.GetChatsByUserId(ctx, user2)
 		assert.NoError(t, err, "error in getting chats")
@@ -128,7 +128,7 @@ func TestUnreads(t *testing.T) {
 
 		err = restClient.DeleteMessage(ctx, user1, chat1Id, messageId3)
 		assert.NoError(t, err, "error in delete message")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		user2ChatsNew4, err := restClient.GetChatsByUserId(ctx, user2)
 		assert.NoError(t, err, "error in getting chats")
@@ -146,7 +146,7 @@ func TestUnreads(t *testing.T) {
 
 func TestPinChat(t *testing.T) {
 	startAppFull(t, func(
-		slogLogger *slog.Logger,
+		lgr *logger.LoggerWrapper,
 		cfg *config.AppConfig,
 		restClient *client.RestClient,
 		saramaClient sarama.Client,
@@ -162,7 +162,7 @@ func TestPinChat(t *testing.T) {
 		chat1Id, err := restClient.CreateChat(ctx, user1, chat1Name)
 		assert.NoError(t, err, "error in creating chat")
 		assert.True(t, chat1Id > 0)
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		title, err := m.GetChatByUserIdAndChatId(ctx, user1, chat1Id)
 		assert.NoError(t, err, "error in getting chat")
@@ -172,7 +172,7 @@ func TestPinChat(t *testing.T) {
 
 		message1Id, err := restClient.CreateMessage(ctx, user1, chat1Id, message1Text)
 		assert.NoError(t, err, "error in creating message")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		user1Chats, err := restClient.GetChatsByUserId(ctx, user1)
 		assert.NoError(t, err, "error in getting chats")
@@ -195,7 +195,7 @@ func TestPinChat(t *testing.T) {
 
 		err = restClient.AddChatParticipants(ctx, chat1Id, []int64{user2})
 		assert.NoError(t, err, "error in adding participants")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		chat1Participants, err := restClient.GetChatParticipants(ctx, chat1Id)
 		assert.NoError(t, err, "error in chat participants")
@@ -211,7 +211,7 @@ func TestPinChat(t *testing.T) {
 
 		err = restClient.PinChat(ctx, user1, chat1Id, true)
 		assert.NoError(t, err, "error in pinning chats")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		user1ChatsNew2, err := restClient.GetChatsByUserId(ctx, user1)
 		assert.NoError(t, err, "error in getting chats")
@@ -238,7 +238,7 @@ func TestPinChat(t *testing.T) {
 
 func TestDeleteChat(t *testing.T) {
 	startAppFull(t, func(
-		slogLogger *slog.Logger,
+		lgr *logger.LoggerWrapper,
 		cfg *config.AppConfig,
 		restClient *client.RestClient,
 		saramaClient sarama.Client,
@@ -254,7 +254,7 @@ func TestDeleteChat(t *testing.T) {
 		chat1Id, err := restClient.CreateChat(ctx, user1, chat1Name)
 		assert.NoError(t, err, "error in creating chat")
 		assert.True(t, chat1Id > 0)
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		title, err := m.GetChatByUserIdAndChatId(ctx, user1, chat1Id)
 		assert.NoError(t, err, "error in getting chat")
@@ -264,7 +264,7 @@ func TestDeleteChat(t *testing.T) {
 
 		message1Id, err := restClient.CreateMessage(ctx, user1, chat1Id, message1Text)
 		assert.NoError(t, err, "error in creating message")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		user1Chats, err := restClient.GetChatsByUserId(ctx, user1)
 		assert.NoError(t, err, "error in getting chats")
@@ -287,7 +287,7 @@ func TestDeleteChat(t *testing.T) {
 
 		err = restClient.AddChatParticipants(ctx, chat1Id, []int64{user2})
 		assert.NoError(t, err, "error in adding participants")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		chat1Participants, err := restClient.GetChatParticipants(ctx, chat1Id)
 		assert.NoError(t, err, "error in chat participants")
@@ -303,7 +303,7 @@ func TestDeleteChat(t *testing.T) {
 
 		err = restClient.DeleteChat(ctx, chat1Id)
 		assert.NoError(t, err, "error in removing chats")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		user1ChatsNew2, err := restClient.GetChatsByUserId(ctx, user1)
 		assert.NoError(t, err, "error in getting chats")
@@ -318,7 +318,7 @@ func TestDeleteChat(t *testing.T) {
 
 func TestAddParticipant(t *testing.T) {
 	startAppFull(t, func(
-		slogLogger *slog.Logger,
+		lgr *logger.LoggerWrapper,
 		cfg *config.AppConfig,
 		restClient *client.RestClient,
 		saramaClient sarama.Client,
@@ -334,7 +334,7 @@ func TestAddParticipant(t *testing.T) {
 		chat1Id, err := restClient.CreateChat(ctx, user1, chat1Name)
 		assert.NoError(t, err, "error in creating chat")
 		assert.True(t, chat1Id > 0)
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		title, err := m.GetChatByUserIdAndChatId(ctx, user1, chat1Id)
 		assert.NoError(t, err, "error in getting chat")
@@ -344,7 +344,7 @@ func TestAddParticipant(t *testing.T) {
 
 		message1Id, err := restClient.CreateMessage(ctx, user1, chat1Id, message1Text)
 		assert.NoError(t, err, "error in creating message")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		user1Chats, err := restClient.GetChatsByUserId(ctx, user1)
 		assert.NoError(t, err, "error in getting chats")
@@ -368,7 +368,7 @@ func TestAddParticipant(t *testing.T) {
 
 		err = restClient.AddChatParticipants(ctx, chat1Id, []int64{user2})
 		assert.NoError(t, err, "error in adding participants")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		chat1Participants, err := restClient.GetChatParticipants(ctx, chat1Id)
 		assert.NoError(t, err, "error in chat participants")
@@ -388,7 +388,7 @@ func TestAddParticipant(t *testing.T) {
 		chat1NewName := "new chat 1 renamed"
 		err = restClient.EditChat(ctx, user1, chat1NewName)
 		assert.NoError(t, err, "error in changing chat")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		user1ChatsNew2, err := restClient.GetChatsByUserId(ctx, user1)
 		assert.NoError(t, err, "error in getting chats")
@@ -416,7 +416,7 @@ func TestAddParticipant(t *testing.T) {
 
 func TestDeleteParticipant(t *testing.T) {
 	startAppFull(t, func(
-		slogLogger *slog.Logger,
+		lgr *logger.LoggerWrapper,
 		cfg *config.AppConfig,
 		restClient *client.RestClient,
 		saramaClient sarama.Client,
@@ -432,7 +432,7 @@ func TestDeleteParticipant(t *testing.T) {
 		chat1Id, err := restClient.CreateChat(ctx, user1, chat1Name)
 		assert.NoError(t, err, "error in creating chat")
 		assert.True(t, chat1Id > 0)
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		title, err := m.GetChatByUserIdAndChatId(ctx, user1, chat1Id)
 		assert.NoError(t, err, "error in getting chat")
@@ -442,7 +442,7 @@ func TestDeleteParticipant(t *testing.T) {
 
 		message1Id, err := restClient.CreateMessage(ctx, user1, chat1Id, message1Text)
 		assert.NoError(t, err, "error in creating message")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		user1Chats, err := restClient.GetChatsByUserId(ctx, user1)
 		assert.NoError(t, err, "error in getting chats")
@@ -466,7 +466,7 @@ func TestDeleteParticipant(t *testing.T) {
 
 		err = restClient.AddChatParticipants(ctx, chat1Id, []int64{user2})
 		assert.NoError(t, err, "error in adding participants")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		chat1Participants, err := restClient.GetChatParticipants(ctx, chat1Id)
 		assert.NoError(t, err, "error in chat participants")
@@ -485,7 +485,7 @@ func TestDeleteParticipant(t *testing.T) {
 
 		err = restClient.DeleteChatParticipants(ctx, chat1Id, []int64{user2})
 		assert.NoError(t, err, "error in removing chat participants")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		user2ChatsNew2, err := restClient.GetChatsByUserId(ctx, user2)
 		assert.NoError(t, err, "error in getting chats")
@@ -506,7 +506,7 @@ func TestDeleteParticipant(t *testing.T) {
 
 func TestEditMessage(t *testing.T) {
 	startAppFull(t, func(
-		slogLogger *slog.Logger,
+		lgr *logger.LoggerWrapper,
 		cfg *config.AppConfig,
 		restClient *client.RestClient,
 		saramaClient sarama.Client,
@@ -521,7 +521,7 @@ func TestEditMessage(t *testing.T) {
 		chat1Id, err := restClient.CreateChat(ctx, user1, chat1Name)
 		assert.NoError(t, err, "error in creating chat")
 		assert.True(t, chat1Id > 0)
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		title, err := m.GetChatByUserIdAndChatId(ctx, user1, chat1Id)
 		assert.NoError(t, err, "error in getting chat")
@@ -534,7 +534,7 @@ func TestEditMessage(t *testing.T) {
 		message2Text := "new message 2"
 		message2Id, err := restClient.CreateMessage(ctx, user1, chat1Id, message2Text)
 		assert.NoError(t, err, "error in creating message")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		user1Chats, err := restClient.GetChatsByUserId(ctx, user1)
 		assert.NoError(t, err, "error in getting chats")
@@ -557,7 +557,7 @@ func TestEditMessage(t *testing.T) {
 		message1TextNew := "new message 1 edited"
 		err = restClient.EditMessage(ctx, user1, chat1Id, message1.Id, message1TextNew)
 		assert.NoError(t, err, "error in creating message")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		user1ChatsNew, err := restClient.GetChatsByUserId(ctx, user1)
 		assert.NoError(t, err, "error in getting chats")
@@ -580,7 +580,7 @@ func TestEditMessage(t *testing.T) {
 		message2TextNew := "new message 1 edited"
 		err = restClient.EditMessage(ctx, user1, chat1Id, message2.Id, message2TextNew)
 		assert.NoError(t, err, "error in creating message")
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(slogLogger, cfg, saramaClient, lc), "error in waiting for processing events")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		user1ChatsNew2, err := restClient.GetChatsByUserId(ctx, user1)
 		assert.NoError(t, err, "error in getting chats")
