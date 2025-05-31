@@ -6,479 +6,40 @@ import (
 	"github.com/gin-gonic/gin"
 	"go-cqrs-chat-example/app"
 	"go-cqrs-chat-example/config"
-	"go-cqrs-chat-example/cqrs"
-	"go-cqrs-chat-example/db"
 	"go-cqrs-chat-example/logger"
 	"go-cqrs-chat-example/utils"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/fx"
 	"log/slog"
 	"net/http"
-	"slices"
 	"time"
 )
 
-type ChatCreateDto struct {
-	Title          string  `json:"title"`
-	ParticipantIds []int64 `json:"participantIds"`
-}
-
-type ChatEditDto struct {
-	Id int64 `json:"id"`
-	ChatCreateDto
-}
-
-type MessageCreateDto struct {
-	Content string `json:"content"`
-}
-
-type MessageEditDto struct {
-	Id int64 `json:"id"`
-	MessageCreateDto
-}
-
-type ParticipantAddDto struct {
-	ParticipantIds []int64 `json:"participantIds"`
-}
-
-type ParticipantDeleteDto struct {
-	ParticipantIds []int64 `json:"participantIds"`
-}
-
-func makeHttpHandlers(ginRouter *gin.Engine, slogLogger *slog.Logger, eventBus cqrs.EventBusInterface, dbWrapper *db.DB, commonProjection *cqrs.CommonProjection) {
-	ginRouter.POST("/chat", func(g *gin.Context) {
-
-		ccd := new(ChatCreateDto)
-
-		err := g.Bind(ccd)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding ChatCreateDto", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		userId, err := getUserId(g)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error parsing UserId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		cc := cqrs.ChatCreate{
-			AdditionalData: cqrs.GenerateMessageAdditionalData(),
-			Title:          ccd.Title,
-			ParticipantIds: ccd.ParticipantIds,
-		}
-
-		if !slices.Contains(cc.ParticipantIds, userId) {
-			cc.ParticipantIds = append(cc.ParticipantIds, userId)
-		}
-
-		chatId, err := cc.Handle(g.Request.Context(), eventBus, dbWrapper, commonProjection)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error sending ChatCreate command", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		m := IdResponse{Id: chatId}
-
-		g.JSON(http.StatusOK, m)
-	})
-
-	ginRouter.PUT("/chat", func(g *gin.Context) {
-		ccd := new(ChatEditDto)
-
-		err := g.Bind(ccd)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding ChatEditDto", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		cc := cqrs.ChatEdit{
-			AdditionalData:      cqrs.GenerateMessageAdditionalData(),
-			ChatId:              ccd.Id,
-			Title:               ccd.Title,
-			ParticipantIdsToAdd: ccd.ParticipantIds,
-		}
-
-		err = cc.Handle(g.Request.Context(), eventBus, commonProjection)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error sending ChatEdit command", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		g.Status(http.StatusOK)
-	})
-
-	ginRouter.DELETE("/chat/:id", func(g *gin.Context) {
-
-		cid := g.Param("id")
-
-		chatId, err := utils.ParseInt64(cid)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding chatId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		cc := cqrs.ChatDelete{
-			AdditionalData: cqrs.GenerateMessageAdditionalData(),
-			ChatId:         chatId,
-		}
-
-		err = cc.Handle(g.Request.Context(), eventBus, commonProjection)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error sending ChatDelete command", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		g.Status(http.StatusOK)
-	})
-
-	ginRouter.PUT("/chat/:id/participant", func(g *gin.Context) {
-		cid := g.Param("id")
-
-		chatId, err := utils.ParseInt64(cid)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding chatId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		ccd := new(ParticipantAddDto)
-
-		err = g.Bind(ccd)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding ParticipantAddDto", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		cc := cqrs.ParticipantAdd{
-			AdditionalData: cqrs.GenerateMessageAdditionalData(),
-			ParticipantIds: ccd.ParticipantIds,
-			ChatId:         chatId,
-		}
-
-		err = cc.Handle(g.Request.Context(), eventBus, commonProjection)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error sending ParticipantAdd command", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		g.Status(http.StatusOK)
-	})
-
-	ginRouter.DELETE("/chat/:id/participant", func(g *gin.Context) {
-		cid := g.Param("id")
-
-		chatId, err := utils.ParseInt64(cid)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding chatId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		ccd := new(ParticipantDeleteDto)
-
-		err = g.Bind(ccd)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding ParticipantDeleteDto", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		cc := cqrs.ParticipantDelete{
-			AdditionalData: cqrs.GenerateMessageAdditionalData(),
-			ParticipantIds: ccd.ParticipantIds,
-			ChatId:         chatId,
-		}
-
-		err = cc.Handle(g.Request.Context(), eventBus, commonProjection)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error sending ParticipantDelete command", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		g.Status(http.StatusOK)
-	})
-
-	ginRouter.PUT("/chat/:id/message", func(g *gin.Context) {
-		cid := g.Param("id")
-		chatId, err := utils.ParseInt64(cid)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding chatId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		userId, err := getUserId(g)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error parsing UserId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		ccd := new(MessageEditDto)
-
-		err = g.Bind(ccd)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding MessageEditDto", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		cc := cqrs.MessageEdit{
-			AdditionalData: cqrs.GenerateMessageAdditionalData(),
-			MessageId:      ccd.Id,
-			ChatId:         chatId,
-			Content:        ccd.Content,
-		}
-
-		err = cc.Handle(g.Request.Context(), eventBus, commonProjection, userId)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error sending MessageEdit command", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		g.Status(http.StatusOK)
-	})
-
-	ginRouter.DELETE("/chat/:id/message/:messageId", func(g *gin.Context) {
-		cid := g.Param("id")
-		chatId, err := utils.ParseInt64(cid)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding chatId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		mid := g.Param("messageId")
-		messageId, err := utils.ParseInt64(mid)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding messageId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		userId, err := getUserId(g)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error parsing UserId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		cc := cqrs.MessageDelete{
-			AdditionalData: cqrs.GenerateMessageAdditionalData(),
-			MessageId:      messageId,
-			ChatId:         chatId,
-		}
-
-		err = cc.Handle(g.Request.Context(), eventBus, commonProjection, userId)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error sending MessageDelete command", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		g.Status(http.StatusOK)
-	})
-
-	ginRouter.PUT("/chat/:id/pin", func(g *gin.Context) {
-		cid := g.Param("id")
-
-		chatId, err := utils.ParseInt64(cid)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding chatId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		p := g.Query("pin")
-
-		pin := utils.GetBoolean(p)
-
-		userId, err := getUserId(g)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error parsing UserId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		cc := cqrs.ChatPin{
-			AdditionalData: cqrs.GenerateMessageAdditionalData(),
-			ChatId:         chatId,
-			Pin:            pin,
-			ParticipantId:  userId,
-		}
-
-		err = cc.Handle(g.Request.Context(), eventBus)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error sending ChatPin command", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		g.Status(http.StatusOK)
-	})
-
-	ginRouter.POST("/chat/:id/message", func(g *gin.Context) {
-		cid := g.Param("id")
-
-		chatId, err := utils.ParseInt64(cid)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding chatId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		userId, err := getUserId(g)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error parsing UserId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		mcd := new(MessageCreateDto)
-
-		err = g.Bind(mcd)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding MessageCreateDto", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		cc := cqrs.MessageCreate{
-			AdditionalData: cqrs.GenerateMessageAdditionalData(),
-			ChatId:         chatId,
-			Content:        mcd.Content,
-			OwnerId:        userId,
-		}
-
-		mid, err := cc.Handle(g.Request.Context(), eventBus, dbWrapper, commonProjection)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error sending MessageCreate command", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		m := IdResponse{Id: mid}
-
-		g.JSON(http.StatusOK, m)
-	})
-
-	ginRouter.PUT("/chat/:id/message/:messageId/read", func(g *gin.Context) {
-		cid := g.Param("id")
-
-		chatId, err := utils.ParseInt64(cid)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding chatId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		mid := g.Param("messageId")
-
-		messageId, err := utils.ParseInt64(mid)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding messageId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		userId, err := getUserId(g)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error parsing UserId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		mr := cqrs.MessageRead{
-			AdditionalData: cqrs.GenerateMessageAdditionalData(),
-			ChatId:         chatId,
-			MessageId:      messageId,
-			ParticipantId:  userId,
-		}
-
-		err = mr.Handle(g.Request.Context(), eventBus, commonProjection)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error sending MessageRead command", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		g.Status(http.StatusOK)
-	})
-
-	ginRouter.GET("/chat/search", func(g *gin.Context) {
-		userId, err := getUserId(g)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error parsing UserId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		chats, err := commonProjection.GetChats(g.Request.Context(), userId)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error getting chats", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-		g.JSON(http.StatusOK, chats)
-	})
-
-	ginRouter.GET("/chat/:id/participants", func(g *gin.Context) {
-		cid := g.Param("id")
-
-		chatId, err := utils.ParseInt64(cid)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding chatId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		participants, err := commonProjection.GetParticipants(g.Request.Context(), chatId)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error getting participants", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-		g.JSON(http.StatusOK, participants)
-	})
-
-	ginRouter.GET("/chat/:id/message/search", func(g *gin.Context) {
-		cid := g.Param("id")
-
-		chatId, err := utils.ParseInt64(cid)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error binding chatId", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-
-		messages, err := commonProjection.GetMessages(g.Request.Context(), chatId)
-		if err != nil {
-			logger.LogWithTrace(g.Request.Context(), slogLogger).Error("Error getting messages", "err", err)
-			g.Status(http.StatusInternalServerError)
-			return
-		}
-		g.JSON(http.StatusOK, messages)
-	})
+func bindHttpHandlers(
+	ginRouter *gin.Engine,
+	chatHandler *ChatHandler,
+	participantHandler *ParticipantHandler,
+	messageHandler *MessageHandler,
+) {
+	ginRouter.POST("/chat", chatHandler.CreateChat)
+	ginRouter.PUT("/chat", chatHandler.EditChat)
+	ginRouter.DELETE("/chat/:id", chatHandler.DeleteChat)
+	ginRouter.PUT("/chat/:id/pin", chatHandler.PinChat)
+	ginRouter.GET("/chat/search", chatHandler.SearchChats)
+
+	ginRouter.PUT("/chat/:id/participant", participantHandler.AddParticipant)
+	ginRouter.DELETE("/chat/:id/participant", participantHandler.DeleteParticipant)
+	ginRouter.GET("/chat/:id/participants", participantHandler.GetParticipants)
+
+	ginRouter.POST("/chat/:id/message", messageHandler.CreateMessage)
+	ginRouter.PUT("/chat/:id/message", messageHandler.EditMessage)
+	ginRouter.DELETE("/chat/:id/message/:messageId", messageHandler.DeleteMessage)
+	ginRouter.PUT("/chat/:id/message/:messageId/read", messageHandler.ReadMessage)
+	ginRouter.GET("/chat/:id/message/search", messageHandler.SearchMessages)
 
 	ginRouter.GET("/internal/health", func(g *gin.Context) {
 		g.Status(http.StatusOK)
 	})
-}
-
-type IdResponse struct {
-	Id int64 `json:"id"`
 }
 
 func getUserId(g *gin.Context) (int64, error) {
@@ -489,10 +50,10 @@ func getUserId(g *gin.Context) (int64, error) {
 func ConfigureHttpServer(
 	cfg *config.AppConfig,
 	slogLogger *slog.Logger,
-	eventBus *cqrs.PartitionAwareEventBus,
-	db *db.DB,
-	commonProjection *cqrs.CommonProjection,
 	lc fx.Lifecycle,
+	chatHandler *ChatHandler,
+	participantHandler *ParticipantHandler,
+	messageHandler *MessageHandler,
 ) *http.Server {
 	// https://gin-gonic.com/en/docs/examples/graceful-restart-or-stop/
 	gin.SetMode(gin.ReleaseMode)
@@ -502,7 +63,7 @@ func ConfigureHttpServer(
 	ginRouter.Use(WriteTraceToHeaderMiddleware())
 	ginRouter.Use(gin.Recovery())
 
-	makeHttpHandlers(ginRouter, slogLogger, eventBus, db, commonProjection)
+	bindHttpHandlers(ginRouter, chatHandler, participantHandler, messageHandler)
 
 	httpServer := &http.Server{
 		Addr:           cfg.HttpServerConfig.Address,
