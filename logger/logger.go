@@ -53,11 +53,13 @@ func NewBaseLogger(w io.Writer, cfg *config.AppConfig) *slog.Logger {
 		baseLogger = slog.New(slog.NewJSONHandler(w, &slog.HandlerOptions{
 			Level:       cfg.LoggerConfig.GetLevel(),
 			ReplaceAttr: replaceFunc,
+			AddSource:   true,
 		}))
 	} else {
 		baseLogger = slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{
 			Level:       cfg.LoggerConfig.GetLevel(),
 			ReplaceAttr: replaceFunc,
+			AddSource:   true,
 		}))
 	}
 
