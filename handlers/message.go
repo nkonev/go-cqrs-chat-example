@@ -107,7 +107,7 @@ func (mc *MessageHandler) EditMessage(g *gin.Context) {
 		Content:        ccd.Content,
 	}
 
-	err = cc.Handle(g.Request.Context(), mc.eventBus, mc.commonProjection, userId)
+	err = cc.Handle(g.Request.Context(), mc.eventBus, mc.dbWrapper, mc.commonProjection, userId)
 	if err != nil {
 		mc.lgr.WithTrace(g.Request.Context()).Error("Error sending MessageEdit command", "err", err)
 		g.Status(http.StatusInternalServerError)
@@ -147,7 +147,7 @@ func (mc *MessageHandler) DeleteMessage(g *gin.Context) {
 		ChatId:         chatId,
 	}
 
-	err = cc.Handle(g.Request.Context(), mc.eventBus, mc.commonProjection, userId)
+	err = cc.Handle(g.Request.Context(), mc.eventBus, mc.dbWrapper, mc.commonProjection, userId)
 	if err != nil {
 		mc.lgr.WithTrace(g.Request.Context()).Error("Error sending MessageDelete command", "err", err)
 		g.Status(http.StatusInternalServerError)

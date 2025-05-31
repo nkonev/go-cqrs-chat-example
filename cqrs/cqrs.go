@@ -9,6 +9,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill/message/router/middleware"
 	"go-cqrs-chat-example/db"
 	"go-cqrs-chat-example/logger"
+	"go-cqrs-chat-example/utils"
 
 	"github.com/ThreeDotsLabs/watermill/components/cqrs"
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -295,17 +296,25 @@ func RunSequenceFastforwarder(
 			return errI0
 		}
 
-		chatIds, errI1 := commonProjection.GetChatIds(ctx, tx)
-		if errI1 != nil {
-			lgr.Error("Error during getting all chats", "err", errI1)
-			return errI1
-		}
+		shouldContinue := true
+		for page := int64(0); shouldContinue; page++ {
+			offset := utils.GetOffset(page, utils.DefaultSize)
 
-		for _, chatId := range chatIds {
-			errI2 := commonProjection.InitializeMessageIdSequenceIfNeed(ctx, tx, chatId)
-			if errI2 != nil {
-				lgr.Error("Error during setting message id sequences", "err", errI2)
-				return errI2
+			chatIdsPortion, errI1 := commonProjection.GetChatIds(ctx, tx, utils.DefaultSize, offset)
+			if errI1 != nil {
+				lgr.Error("Error during getting all chats", "err", errI1)
+				return errI1
+			}
+			if len(chatIdsPortion) < utils.DefaultSize {
+				shouldContinue = false
+			}
+
+			for _, chatId := range chatIdsPortion {
+				errI2 := commonProjection.InitializeMessageIdSequenceIfNeed(ctx, tx, chatId)
+				if errI2 != nil {
+					lgr.Error("Error during setting message id sequences", "err", errI2)
+					return errI2
+				}
 			}
 		}
 

@@ -3,6 +3,7 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 	"go-cqrs-chat-example/cqrs"
+	"go-cqrs-chat-example/db"
 	"go-cqrs-chat-example/logger"
 	"go-cqrs-chat-example/utils"
 	"net/http"
@@ -11,17 +12,20 @@ import (
 type ParticipantHandler struct {
 	lgr              *logger.LoggerWrapper
 	eventBus         *cqrs.PartitionAwareEventBus
+	dbWrapper        *db.DB
 	commonProjection *cqrs.CommonProjection
 }
 
 func NewParticipantHandler(
 	lgr *logger.LoggerWrapper,
 	eventBus *cqrs.PartitionAwareEventBus,
+	dbWrapper *db.DB,
 	commonProjection *cqrs.CommonProjection,
 ) *ParticipantHandler {
 	return &ParticipantHandler{
 		lgr:              lgr,
 		eventBus:         eventBus,
+		dbWrapper:        dbWrapper,
 		commonProjection: commonProjection,
 	}
 }
@@ -51,7 +55,7 @@ func (ch *ParticipantHandler) AddParticipant(g *gin.Context) {
 		ChatId:         chatId,
 	}
 
-	err = cc.Handle(g.Request.Context(), ch.eventBus, ch.commonProjection)
+	err = cc.Handle(g.Request.Context(), ch.eventBus, ch.dbWrapper, ch.commonProjection)
 	if err != nil {
 		ch.lgr.WithTrace(g.Request.Context()).Error("Error sending ParticipantAdd command", "err", err)
 		g.Status(http.StatusInternalServerError)
@@ -86,7 +90,7 @@ func (ch *ParticipantHandler) DeleteParticipant(g *gin.Context) {
 		ChatId:         chatId,
 	}
 
-	err = cc.Handle(g.Request.Context(), ch.eventBus, ch.commonProjection)
+	err = cc.Handle(g.Request.Context(), ch.eventBus, ch.dbWrapper, ch.commonProjection)
 	if err != nil {
 		ch.lgr.WithTrace(g.Request.Context()).Error("Error sending ParticipantDelete command", "err", err)
 		g.Status(http.StatusInternalServerError)
@@ -106,7 +110,11 @@ func (ch *ParticipantHandler) GetParticipants(g *gin.Context) {
 		return
 	}
 
-	participants, err := ch.commonProjection.GetParticipantIds(g.Request.Context(), chatId)
+	participantsPage := utils.FixPageString(g.Query("page"))
+	participantsSize := utils.FixSizeString(g.Query("size"))
+	participantsOffset := utils.GetOffset(participantsPage, participantsSize)
+
+	participants, err := ch.commonProjection.GetParticipantIdsForExternal(g.Request.Context(), chatId, participantsSize, participantsOffset)
 	if err != nil {
 		ch.lgr.WithTrace(g.Request.Context()).Error("Error getting participants", "err", err)
 		g.Status(http.StatusInternalServerError)

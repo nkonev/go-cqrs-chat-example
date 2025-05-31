@@ -2,6 +2,7 @@ package cqrs
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"github.com/jackc/pgtype"
 	"go-cqrs-chat-example/config"
@@ -83,13 +84,14 @@ func (m *CommonProjection) GetNextMessageId(ctx context.Context, tx *db.Tx, chat
 	return messageId, nil
 }
 
-func (m *CommonProjection) GetChatIds(ctx context.Context, tx *db.Tx) ([]int64, error) {
+func (m *CommonProjection) GetChatIds(ctx context.Context, tx *db.Tx, size int32, offset int64) ([]int64, error) {
 	ma := []int64{}
 	rows, err := tx.QueryContext(ctx, `
 		select c.id
 		from chat_common c
 		order by c.id asc 
-	`)
+		limit $1 offset $2
+	`, size, offset)
 	if err != nil {
 		return ma, err
 	}
@@ -631,22 +633,8 @@ func (m *CommonProjection) OnUnreadMessageReaded(ctx context.Context, event *Mes
 	return nil
 }
 
-func (m *CommonProjection) GetParticipantIds(ctx context.Context, chatId int64) ([]int64, error) {
-	res := []int64{}
-	rows, err := m.db.QueryContext(ctx, "select user_id from chat_participant where chat_id = $1 order by user_id", chatId)
-	if err != nil {
-		return res, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var pid int64
-		err = rows.Scan(&pid)
-		if err != nil {
-			return res, err
-		}
-		res = append(res, pid)
-	}
-	return res, nil
+func (m *CommonProjection) GetParticipantIdsForExternal(ctx context.Context, chatId int64, size int32, offset int64) ([]int64, error) {
+	return getParticipantIdsCommon(ctx, m.db, chatId, nil, size, offset)
 }
 
 func (m *CommonProjection) GetMessageOwner(ctx context.Context, chatId, messageId int64) (int64, error) {
@@ -799,4 +787,57 @@ func (m *CommonProjection) GetChatByUserIdAndChatId(ctx context.Context, userId,
 		return "", err
 	}
 	return t, nil
+}
+
+func getParticipantIdsCommon(ctx context.Context, co db.CommonOperations, chatId int64, excluding []int64, participantsSize int32, participantsOffset int64) ([]int64, error) {
+	var rows *sql.Rows
+	var err error
+
+	if len(excluding) > 0 {
+		rows, err = co.QueryContext(ctx, "SELECT user_id FROM chat_participant WHERE chat_id = $1 AND user_id not in (select * from unnest(cast ($4 as bigint[]))) order by user_id LIMIT $2 OFFSET $3", chatId, participantsSize, participantsOffset, excluding)
+	} else {
+		rows, err = co.QueryContext(ctx, "SELECT user_id FROM chat_participant WHERE chat_id = $1 order by user_id LIMIT $2 OFFSET $3", chatId, participantsSize, participantsOffset)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("error during interacting with db: %w", err)
+	}
+	defer rows.Close()
+	list := make([]int64, 0)
+	for rows.Next() {
+		var participantId int64
+		if err = rows.Scan(&participantId); err != nil {
+			return nil, fmt.Errorf("error during interacting with db: %w", err)
+		} else {
+			list = append(list, participantId)
+		}
+	}
+	return list, nil
+}
+
+func (m *CommonProjection) IterateOverChatParticipantIds(ctx context.Context, co db.CommonOperations, chatId int64, excluding []int64, consumer func(participantIdsPortion []int64) error) error {
+	shouldContinue := true
+	var lastError error
+	for page := int64(0); shouldContinue; page++ {
+		offset := utils.GetOffset(page, utils.DefaultSize)
+		participantIds, err := getParticipantIdsCommon(ctx, co, chatId, excluding, utils.DefaultSize, offset)
+		if err != nil {
+			m.lgr.WithTrace(ctx).Error("Got error during getting portion", "err", err)
+			lastError = err
+			break
+		}
+		if len(participantIds) == 0 {
+			return nil
+		}
+		if len(participantIds) < utils.DefaultSize {
+			shouldContinue = false
+		}
+		err = consumer(participantIds)
+		if err != nil {
+			m.lgr.WithTrace(ctx).Error("Got error during invoking consumer portion", "err", err)
+			lastError = err
+			break
+		}
+	}
+	return lastError
 }

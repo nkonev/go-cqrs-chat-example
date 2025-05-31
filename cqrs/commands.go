@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"go-cqrs-chat-example/db"
-	"go-cqrs-chat-example/utils"
 )
 
 type ChatCreate struct {
@@ -99,7 +98,7 @@ func (s *ChatCreate) Handle(ctx context.Context, eventBus EventBusInterface, dba
 	return chatId, nil
 }
 
-func (s *ChatEdit) Handle(ctx context.Context, eventBus EventBusInterface, commonProjection *CommonProjection) error {
+func (s *ChatEdit) Handle(ctx context.Context, eventBus EventBusInterface, dba *db.DB, commonProjection *CommonProjection) error {
 	cc := &ChatEdited{
 		AdditionalData: s.AdditionalData,
 		ChatId:         s.ChatId,
@@ -122,32 +121,44 @@ func (s *ChatEdit) Handle(ctx context.Context, eventBus EventBusInterface, commo
 		}
 	}
 
-	participantIds, err := commonProjection.GetParticipantIds(ctx, s.ChatId)
-	if err != nil {
-		return err
-	}
+	errOuter := commonProjection.IterateOverChatParticipantIds(ctx, dba, s.ChatId, nil, func(participantIdsPortion []int64) error {
+		ui := &ChatViewRefreshed{
+			AdditionalData:   s.AdditionalData,
+			ParticipantIds:   participantIdsPortion,
+			ChatId:           s.ChatId,
+			ChatCommonAction: ChatCommonActionRefresh,
+			Title:            s.Title,
+		}
 
-	ui := &ChatViewRefreshed{
-		AdditionalData:   s.AdditionalData,
-		ParticipantIds:   participantIds,
-		ChatId:           s.ChatId,
-		ChatCommonAction: ChatCommonActionRefresh,
-		Title:            s.Title,
-	}
+		if len(s.ParticipantIdsToAdd) > 0 {
+			ui.ParticipantsAction = ParticipantsActionRefresh
+		}
 
-	if len(s.ParticipantIdsToAdd) > 0 {
-		ui.ParticipantsAction = ParticipantsActionRefresh
-	}
+		errInner := eventBus.Publish(ctx, ui)
+		if errInner != nil {
+			return errInner
+		}
+		return nil
+	})
 
-	err = eventBus.Publish(ctx, ui)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return errOuter
 }
 
-func (s *ChatDelete) Handle(ctx context.Context, eventBus EventBusInterface, commonProjection *CommonProjection) error {
+func (s *ChatDelete) Handle(ctx context.Context, eventBus EventBusInterface, dba *db.DB, commonProjection *CommonProjection) error {
+	errOuter := commonProjection.IterateOverChatParticipantIds(ctx, dba, s.ChatId, nil, func(participantIdsPortion []int64) error {
+		pa := &ParticipantDeleted{
+			AdditionalData: s.AdditionalData,
+			ParticipantIds: participantIdsPortion,
+			ChatId:         s.ChatId,
+		}
+		errInner := eventBus.Publish(ctx, pa)
+		return errInner
+
+	})
+	if errOuter != nil {
+		return errOuter
+	}
+
 	cc := &ChatDeleted{
 		AdditionalData: s.AdditionalData,
 		ChatId:         s.ChatId,
@@ -156,85 +167,70 @@ func (s *ChatDelete) Handle(ctx context.Context, eventBus EventBusInterface, com
 	if err != nil {
 		return err
 	}
-
-	participantIds, err := commonProjection.GetParticipantIds(ctx, s.ChatId)
-	if err != nil {
-		return err
-	}
-
-	pa := &ParticipantDeleted{
-		AdditionalData: s.AdditionalData,
-		ParticipantIds: participantIds,
-		ChatId:         s.ChatId,
-	}
-	return eventBus.Publish(ctx, pa)
+	return nil
 }
 
-func (s *ParticipantAdd) Handle(ctx context.Context, eventBus EventBusInterface, commonProjection *CommonProjection) error {
-	participantIds, err := commonProjection.GetParticipantIds(ctx, s.ChatId)
-	if err != nil {
-		return err
-	}
-
+func (s *ParticipantAdd) Handle(ctx context.Context, eventBus EventBusInterface, dba *db.DB, commonProjection *CommonProjection) error {
 	pa := &ParticipantsAdded{
 		AdditionalData: s.AdditionalData,
 		ParticipantIds: s.ParticipantIds,
 		ChatId:         s.ChatId,
 	}
-	err = eventBus.Publish(ctx, pa)
+	err := eventBus.Publish(ctx, pa)
 	if err != nil {
 		return err
 	}
 
-	ui := &ChatViewRefreshed{
-		AdditionalData:     s.AdditionalData,
-		ParticipantIds:     participantIds, // chat_user_views for newly added participants will be created from scratch including already added, see ParticipantsAdded handler
-		ChatId:             s.ChatId,
-		ParticipantsAction: ParticipantsActionRefresh,
-	}
-	err = eventBus.Publish(ctx, ui)
-	if err != nil {
-		return err
-	}
+	// excluding => s.ParticipantIds is an optimization in order not to re-refresh views for the recently added
+	errOuter := commonProjection.IterateOverChatParticipantIds(ctx, dba, s.ChatId, s.ParticipantIds, func(participantIdsPortion []int64) error {
+		if len(participantIdsPortion) > 0 {
+			ui := &ChatViewRefreshed{
+				AdditionalData:     s.AdditionalData,
+				ParticipantIds:     participantIdsPortion, // chat_user_views for newly added participants will be created from scratch including already added, see ParticipantsAdded handler
+				ChatId:             s.ChatId,
+				ParticipantsAction: ParticipantsActionRefresh,
+			}
+			errInner := eventBus.Publish(ctx, ui)
+			if errInner != nil {
+				return errInner
+			}
+		}
+		return nil
+	})
 
-	return nil
+	return errOuter
 }
 
-func (s *ParticipantDelete) Handle(ctx context.Context, eventBus EventBusInterface, commonProjection *CommonProjection) error {
-	participantIds, err := commonProjection.GetParticipantIds(ctx, s.ChatId)
-	if err != nil {
-		return err
-	}
-
+func (s *ParticipantDelete) Handle(ctx context.Context, eventBus EventBusInterface, dba *db.DB, commonProjection *CommonProjection) error {
 	pa := &ParticipantDeleted{
 		AdditionalData: s.AdditionalData,
 		ParticipantIds: s.ParticipantIds,
 		ChatId:         s.ChatId,
 	}
-	err = eventBus.Publish(ctx, pa)
+	err := eventBus.Publish(ctx, pa)
 	if err != nil {
 		return err
 	}
 
-	remainingParticipantIds := make([]int64, len(participantIds))
-	copy(remainingParticipantIds, participantIds)
-	for _, participantToDeleteId := range s.ParticipantIds {
-		remainingParticipantIds = utils.GetSliceWithout(participantToDeleteId, remainingParticipantIds)
-	}
-	if len(remainingParticipantIds) > 0 {
-		ui := &ChatViewRefreshed{
-			AdditionalData:     s.AdditionalData,
-			ParticipantIds:     remainingParticipantIds,
-			ChatId:             s.ChatId,
-			ParticipantsAction: ParticipantsActionRefresh,
+	// excluding => s.ParticipantIds is a mandatory thing, because we shouldn't refresh views for deleted participants
+	errOuter := commonProjection.IterateOverChatParticipantIds(ctx, dba, s.ChatId, s.ParticipantIds, func(participantIdsPortion []int64) error {
+		if len(participantIdsPortion) > 0 {
+			ui := &ChatViewRefreshed{
+				AdditionalData:     s.AdditionalData,
+				ParticipantIds:     participantIdsPortion,
+				ChatId:             s.ChatId,
+				ParticipantsAction: ParticipantsActionRefresh,
+			}
+			errInner := eventBus.Publish(ctx, ui)
+			if errInner != nil {
+				return errInner
+			}
+			return nil
 		}
-		err = eventBus.Publish(ctx, ui)
-		if err != nil {
-			return err
-		}
-	}
+		return nil
+	})
 
-	return nil
+	return errOuter
 }
 
 func (s *ChatPin) Handle(ctx context.Context, eventBus EventBusInterface) error {
@@ -265,24 +261,28 @@ func (s *MessageCreate) Handle(ctx context.Context, eventBus EventBusInterface, 
 		return 0, err
 	}
 
-	participantIds, err := commonProjection.GetParticipantIds(ctx, s.ChatId)
-	if err != nil {
-		return 0, err
-	}
+	// TODO a potential race condition - by refresh view we can resurrect view of the newly removed participant
+	//  introduce a flag - ChatViewRefreshed.shouldNotCreate
+	errOuter := commonProjection.IterateOverChatParticipantIds(ctx, dba, s.ChatId, nil, func(participantIdsPortion []int64) error {
+		ui := &ChatViewRefreshed{
+			AdditionalData:       s.AdditionalData,
+			ParticipantIds:       participantIdsPortion,
+			ChatId:               s.ChatId,
+			UnreadMessagesAction: UnreadMessagesActionIncrease,
+			IncreaseOn:           1,
+			OwnerId:              s.OwnerId,
+			LastMessageAction:    LastMessageActionRefresh,
+		}
 
-	ui := &ChatViewRefreshed{
-		AdditionalData:       s.AdditionalData,
-		ParticipantIds:       participantIds,
-		ChatId:               s.ChatId,
-		UnreadMessagesAction: UnreadMessagesActionIncrease,
-		IncreaseOn:           1,
-		OwnerId:              s.OwnerId,
-		LastMessageAction:    LastMessageActionRefresh,
-	}
+		errInner := eventBus.Publish(ctx, ui)
+		if errInner != nil {
+			return errInner
+		}
+		return nil
+	})
 
-	err = eventBus.Publish(ctx, ui)
-	if err != nil {
-		return 0, err
+	if errOuter != nil {
+		return 0, errOuter
 	}
 
 	return messageId, err
@@ -314,7 +314,7 @@ func (s *MessageRead) Handle(ctx context.Context, eventBus EventBusInterface, co
 	return nil
 }
 
-func (s *MessageDelete) Handle(ctx context.Context, eventBus EventBusInterface, commonProjection *CommonProjection, userId int64) error {
+func (s *MessageDelete) Handle(ctx context.Context, eventBus EventBusInterface, dba *db.DB, commonProjection *CommonProjection, userId int64) error {
 
 	ownerId, err := commonProjection.GetMessageOwner(ctx, s.ChatId, s.MessageId)
 	if err != nil {
@@ -335,29 +335,27 @@ func (s *MessageDelete) Handle(ctx context.Context, eventBus EventBusInterface, 
 		return err
 	}
 
-	participantIds, err := commonProjection.GetParticipantIds(ctx, s.ChatId)
-	if err != nil {
-		return err
-	}
+	errOuter := commonProjection.IterateOverChatParticipantIds(ctx, dba, s.ChatId, nil, func(participantIdsPortion []int64) error {
+		ui := &ChatViewRefreshed{
+			AdditionalData:       s.AdditionalData,
+			ParticipantIds:       participantIdsPortion,
+			ChatId:               s.ChatId,
+			UnreadMessagesAction: UnreadMessagesActionRefresh,
+			OwnerId:              userId,
+			LastMessageAction:    LastMessageActionRefresh,
+		}
 
-	ui := &ChatViewRefreshed{
-		AdditionalData:       s.AdditionalData,
-		ParticipantIds:       participantIds,
-		ChatId:               s.ChatId,
-		UnreadMessagesAction: UnreadMessagesActionRefresh,
-		OwnerId:              userId,
-		LastMessageAction:    LastMessageActionRefresh,
-	}
+		errInner := eventBus.Publish(ctx, ui)
+		if errInner != nil {
+			return errInner
+		}
+		return nil
+	})
 
-	err = eventBus.Publish(ctx, ui)
-	if err != nil {
-		return err
-	}
-	return nil
+	return errOuter
 }
 
-func (s *MessageEdit) Handle(ctx context.Context, eventBus EventBusInterface, commonProjection *CommonProjection, userId int64) error {
-
+func (s *MessageEdit) Handle(ctx context.Context, eventBus EventBusInterface, dba *db.DB, commonProjection *CommonProjection, userId int64) error {
 	ownerId, err := commonProjection.GetMessageOwner(ctx, s.ChatId, s.MessageId)
 	if err != nil {
 		return err
@@ -381,21 +379,22 @@ func (s *MessageEdit) Handle(ctx context.Context, eventBus EventBusInterface, co
 	lastMessageId, err := commonProjection.GetLastMessageId(ctx, s.ChatId)
 	if lastMessageId == s.MessageId {
 		// if it's the last chat message then update ChatView
-		participantIds, err := commonProjection.GetParticipantIds(ctx, s.ChatId)
-		if err != nil {
-			return err
-		}
+		errOuter := commonProjection.IterateOverChatParticipantIds(ctx, dba, s.ChatId, nil, func(participantIdsPortion []int64) error {
+			ui := &ChatViewRefreshed{
+				AdditionalData:    s.AdditionalData,
+				ParticipantIds:    participantIdsPortion,
+				ChatId:            s.ChatId,
+				LastMessageAction: LastMessageActionRefresh,
+			}
 
-		ui := &ChatViewRefreshed{
-			AdditionalData:    s.AdditionalData,
-			ParticipantIds:    participantIds,
-			ChatId:            s.ChatId,
-			LastMessageAction: LastMessageActionRefresh,
-		}
-
-		err = eventBus.Publish(ctx, ui)
-		if err != nil {
-			return err
+			errInner := eventBus.Publish(ctx, ui)
+			if errInner != nil {
+				return errInner
+			}
+			return nil
+		})
+		if errOuter != nil {
+			return errOuter
 		}
 	}
 	return nil

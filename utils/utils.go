@@ -6,6 +6,11 @@ import (
 	"strconv"
 )
 
+const maxSize = 100
+const DefaultSize = 20
+const DefaultPage = 0
+const DefaultOffset = 0
+
 func ToString(in any) string {
 	return fmt.Sprintf("%v", in)
 }
@@ -36,7 +41,55 @@ func GetSliceWithout(exception int64, inputData []int64) []int64 {
 	return ret
 }
 
+func GetSliceWithoutSlice(exception []int64, inputData []int64) []int64 {
+	remaining := make([]int64, len(inputData))
+	copy(remaining, inputData)
+	for _, toDeleteId := range exception {
+		remaining = GetSliceWithout(toDeleteId, remaining)
+	}
+	return remaining
+}
+
 func StringToUrl(s string) *url.URL {
 	u, _ := url.Parse(s)
 	return u
+}
+
+func FixPage(page int64) int64 {
+	if page < 0 {
+		return DefaultPage
+	} else {
+		return page
+	}
+}
+
+func FixPageString(page string) int64 {
+	atoi, err := ParseInt64(page)
+	if err != nil {
+		return DefaultPage
+	} else {
+		return FixPage(atoi)
+	}
+}
+
+func FixSize(size int32) int32 {
+	if size > maxSize || size < 1 {
+		return DefaultSize
+	} else {
+		return size
+	}
+}
+
+func FixSizeString(size string) int32 {
+	atoi, err := strconv.Atoi(size)
+	if err != nil {
+		return DefaultSize
+	} else {
+		return FixSize(int32(atoi))
+	}
+
+}
+
+func GetOffset(page int64, size int32) int64 {
+	return page * int64(size)
 }

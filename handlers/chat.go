@@ -87,7 +87,7 @@ func (ch *ChatHandler) EditChat(g *gin.Context) {
 		ParticipantIdsToAdd: ccd.ParticipantIds,
 	}
 
-	err = cc.Handle(g.Request.Context(), ch.eventBus, ch.commonProjection)
+	err = cc.Handle(g.Request.Context(), ch.eventBus, ch.dbWrapper, ch.commonProjection)
 	if err != nil {
 		ch.lgr.WithTrace(g.Request.Context()).Error("Error sending ChatEdit command", "err", err)
 		g.Status(http.StatusInternalServerError)
@@ -113,7 +113,7 @@ func (ch *ChatHandler) DeleteChat(g *gin.Context) {
 		ChatId:         chatId,
 	}
 
-	err = cc.Handle(g.Request.Context(), ch.eventBus, ch.commonProjection)
+	err = cc.Handle(g.Request.Context(), ch.eventBus, ch.dbWrapper, ch.commonProjection)
 	if err != nil {
 		ch.lgr.WithTrace(g.Request.Context()).Error("Error sending ChatDelete command", "err", err)
 		g.Status(http.StatusInternalServerError)
