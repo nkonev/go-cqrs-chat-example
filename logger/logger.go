@@ -3,10 +3,13 @@ package logger
 import (
 	"context"
 	"fmt"
+	"go-cqrs-chat-example/app"
 	"go-cqrs-chat-example/config"
 	"go.opentelemetry.io/otel/trace"
 	"io"
 	"log/slog"
+	"strings"
+	"time"
 )
 
 const LogFieldTraceId = "trace_id"
@@ -22,16 +25,43 @@ type LoggerWrapper struct {
 
 func NewBaseLogger(w io.Writer, cfg *config.AppConfig) *slog.Logger {
 	var baseLogger *slog.Logger
+
+	replaceFunc := func(groups []string, a slog.Attr) slog.Attr {
+		if a.Key == "msg" {
+			return slog.Attr{
+				Key:   "message",
+				Value: a.Value,
+			}
+		} else if a.Key == "time" {
+			utcTime := time.Now().UTC()
+			utcFormattedTime := utcTime.Format("2006-01-02T15:04:05.000000000Z")
+			return slog.Attr{
+				Key:   "@timestamp",
+				Value: slog.AnyValue(utcFormattedTime),
+			}
+		} else if a.Key == "level" {
+			return slog.Attr{
+				Key:   "level",
+				Value: slog.StringValue(strings.ToLower(a.Value.String())),
+			}
+		} else {
+			return a
+		}
+	}
+
 	if cfg.LoggerConfig.Json {
 		baseLogger = slog.New(slog.NewJSONHandler(w, &slog.HandlerOptions{
-			Level: cfg.LoggerConfig.GetLevel(),
+			Level:       cfg.LoggerConfig.GetLevel(),
+			ReplaceAttr: replaceFunc,
 		}))
 	} else {
 		baseLogger = slog.New(slog.NewTextHandler(w, &slog.HandlerOptions{
-			Level: cfg.LoggerConfig.GetLevel(),
+			Level:       cfg.LoggerConfig.GetLevel(),
+			ReplaceAttr: replaceFunc,
 		}))
 	}
-	return baseLogger
+
+	return baseLogger.With(slog.String("service", app.TRACE_RESOURCE))
 }
 
 func NewLogger(base *slog.Logger) *LoggerWrapper {

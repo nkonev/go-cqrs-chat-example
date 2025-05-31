@@ -58,6 +58,7 @@ func makeLoggingDriver(cfg *config.AppConfig, lgr *logger.LoggerWrapper) driver.
 
 func writeNamedValues(args []driver.NamedValue) string {
 	sb := strings.Builder{}
+	sb.WriteString("[")
 	for i, arg := range args {
 		if i != 0 {
 			sb.WriteString(fmt.Sprintf(", "))
@@ -68,6 +69,7 @@ func writeNamedValues(args []driver.NamedValue) string {
 		}
 		sb.WriteString(fmt.Sprintf("%#v", arg.Value))
 	}
+	sb.WriteString("]")
 
 	return sb.String()
 }
