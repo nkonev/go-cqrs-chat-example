@@ -26,6 +26,7 @@ postgresql:
   maxIdleConnections: 4
   maxLifetime: 30s
   prettyLog: true
+  dump: true
   migration:
     migrationTable: "go_migrate"
     statementDuration: 15m
@@ -40,6 +41,7 @@ cqrs:
   # default 2s
   checkAreEventsProcessedInterval: 2s
   dump: true
+  prettyLog: true
   import:
     file: stdin
   export:
@@ -49,6 +51,8 @@ http:
   maxIdleConns: 2
   idleConnTimeout: '10s'
   disableCompression: false
+  prettyLog: true
+  dump: true
 projections:
   chatUserView:
     maxViewableParticipants: 10

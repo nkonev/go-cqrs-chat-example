@@ -171,8 +171,13 @@ func queryRawResponse[ReqDto any](ctx context.Context, rc *RestClient, behalfUse
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println("[test http client] >>>")
-		fmt.Println(string(dumpReq))
+		if rc.cfg.RestClientConfig.PrettyLog {
+			fmt.Printf("[test http client] >>>\n")
+			fmt.Printf(string(dumpReq) + "\n")
+		} else {
+			rc.lgr.Info("[test http client] >>>")
+			rc.lgr.Info(string(dumpReq))
+		}
 	}
 
 	httpResp, err := rc.Do(httpReq)
@@ -191,8 +196,13 @@ func queryRawResponse[ReqDto any](ctx context.Context, rc *RestClient, behalfUse
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println("[test http client] <<<")
-		fmt.Println(string(dumpResp))
+		if rc.cfg.RestClientConfig.PrettyLog {
+			fmt.Printf("[test http client] <<<\n")
+			fmt.Printf(string(dumpResp) + "\n")
+		} else {
+			rc.lgr.Info("[test http client] <<<")
+			rc.lgr.Info(string(dumpResp))
+		}
 	}
 	return httpResp, err
 }

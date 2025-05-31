@@ -60,12 +60,14 @@ type PostgreSQLConfig struct {
 	MaxLifetime        time.Duration   `mapstructure:"maxLifetime"`
 	MigrationConfig    MigrationConfig `mapstructure:"migration"`
 	PrettyLog          bool            `mapstructure:"prettyLog"`
+	Dump               bool            `mapstructure:"dump"`
 }
 
 type CqrsConfig struct {
 	SleepBeforeEvent                time.Duration `mapstructure:"sleepBeforeEvent"`
 	CheckAreEventsProcessedInterval time.Duration `mapstructure:"checkAreEventsProcessedInterval"`
 	Dump                            bool          `mapstructure:"dump"`
+	PrettyLog                       bool          `mapstructure:"prettyLog"`
 	ExportConfig                    ExportConfig  `mapstructure:"export"`
 	ImportConfig                    ImportConfig  `mapstructure:"import"`
 }
@@ -75,6 +77,7 @@ type RestClientConfig struct {
 	IdleConnTimeout    time.Duration `mapstructure:"idleConnTimeout"`
 	DisableCompression bool          `mapstructure:"disableCompression"`
 	Dump               bool          `mapstructure:"dump"`
+	PrettyLog          bool          `mapstructure:"prettyLog"`
 }
 
 type ImportConfig struct {

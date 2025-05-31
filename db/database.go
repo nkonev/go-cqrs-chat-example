@@ -28,11 +28,13 @@ func makeLoggingDriver(cfg *config.AppConfig, lgr *logger.LoggerWrapper) driver.
 			return time.Now(), nil
 		},
 		PostExec: func(c context.Context, ctx interface{}, stmt *proxy.Stmt, args []driver.NamedValue, _ driver.Result, err error) error {
-			s := fmt.Sprintf("Exec: %s; args = %v (%s)\n", stmt.QueryString, writeNamedValues(args), time.Since(ctx.(time.Time)))
-			if cfg.PostgreSQLConfig.PrettyLog {
-				fmt.Println("[SQL] trace_id=" + logger.GetTraceId(c) + ": " + s)
-			} else {
-				lgr.WithTrace(c).Debug(s)
+			if cfg.PostgreSQLConfig.Dump {
+				s := fmt.Sprintf("Exec: %s; args = %v (%s)\n", stmt.QueryString, writeNamedValues(args), time.Since(ctx.(time.Time)))
+				if cfg.PostgreSQLConfig.PrettyLog {
+					fmt.Printf("[SQL] trace_id=" + logger.GetTraceId(c) + ": " + s + "\n")
+				} else {
+					lgr.WithTrace(c).Debug(s)
+				}
 			}
 			return err
 		},
@@ -41,11 +43,13 @@ func makeLoggingDriver(cfg *config.AppConfig, lgr *logger.LoggerWrapper) driver.
 			return time.Now(), nil
 		},
 		PostQuery: func(c context.Context, ctx interface{}, stmt *proxy.Stmt, args []driver.NamedValue, rows driver.Rows, err error) error {
-			s := fmt.Sprintf("Query: %s; args = %v (%s)\n", stmt.QueryString, writeNamedValues(args), time.Since(ctx.(time.Time)))
-			if cfg.PostgreSQLConfig.PrettyLog {
-				fmt.Println("[SQL] trace_id=" + logger.GetTraceId(c) + ": " + s)
-			} else {
-				lgr.WithTrace(c).Debug(s)
+			if cfg.PostgreSQLConfig.Dump {
+				s := fmt.Sprintf("Query: %s; args = %v (%s)\n", stmt.QueryString, writeNamedValues(args), time.Since(ctx.(time.Time)))
+				if cfg.PostgreSQLConfig.PrettyLog {
+					fmt.Printf("[SQL] trace_id=" + logger.GetTraceId(c) + ": " + s + "\n")
+				} else {
+					lgr.WithTrace(c).Debug(s)
+				}
 			}
 			return err
 		},
