@@ -631,7 +631,7 @@ func (m *CommonProjection) OnUnreadMessageReaded(ctx context.Context, event *Mes
 	return nil
 }
 
-func (m *CommonProjection) GetParticipants(ctx context.Context, chatId int64) ([]int64, error) {
+func (m *CommonProjection) GetParticipantIds(ctx context.Context, chatId int64) ([]int64, error) {
 	res := []int64{}
 	rows, err := m.db.QueryContext(ctx, "select user_id from chat_participant where chat_id = $1 order by user_id", chatId)
 	if err != nil {

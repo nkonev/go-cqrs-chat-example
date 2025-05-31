@@ -295,7 +295,7 @@ func RunSequenceFastforwarder(
 			return errI0
 		}
 
-		chatIds, errI1 := commonProjection.GetChatIds(ctx, tx) // TODO paginate
+		chatIds, errI1 := commonProjection.GetChatIds(ctx, tx)
 		if errI1 != nil {
 			lgr.Error("Error during getting all chats", "err", errI1)
 			return errI1

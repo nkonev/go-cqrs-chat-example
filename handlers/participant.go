@@ -106,7 +106,7 @@ func (ch *ParticipantHandler) GetParticipants(g *gin.Context) {
 		return
 	}
 
-	participants, err := ch.commonProjection.GetParticipants(g.Request.Context(), chatId)
+	participants, err := ch.commonProjection.GetParticipantIds(g.Request.Context(), chatId)
 	if err != nil {
 		ch.lgr.WithTrace(g.Request.Context()).Error("Error getting participants", "err", err)
 		g.Status(http.StatusInternalServerError)

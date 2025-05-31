@@ -122,8 +122,7 @@ func (s *ChatEdit) Handle(ctx context.Context, eventBus EventBusInterface, commo
 		}
 	}
 
-	// TODO paginate
-	participantIds, err := commonProjection.GetParticipants(ctx, s.ChatId)
+	participantIds, err := commonProjection.GetParticipantIds(ctx, s.ChatId)
 	if err != nil {
 		return err
 	}
@@ -158,7 +157,7 @@ func (s *ChatDelete) Handle(ctx context.Context, eventBus EventBusInterface, com
 		return err
 	}
 
-	participantIds, err := commonProjection.GetParticipants(ctx, s.ChatId)
+	participantIds, err := commonProjection.GetParticipantIds(ctx, s.ChatId)
 	if err != nil {
 		return err
 	}
@@ -172,7 +171,7 @@ func (s *ChatDelete) Handle(ctx context.Context, eventBus EventBusInterface, com
 }
 
 func (s *ParticipantAdd) Handle(ctx context.Context, eventBus EventBusInterface, commonProjection *CommonProjection) error {
-	participantIds, err := commonProjection.GetParticipants(ctx, s.ChatId)
+	participantIds, err := commonProjection.GetParticipantIds(ctx, s.ChatId)
 	if err != nil {
 		return err
 	}
@@ -202,7 +201,7 @@ func (s *ParticipantAdd) Handle(ctx context.Context, eventBus EventBusInterface,
 }
 
 func (s *ParticipantDelete) Handle(ctx context.Context, eventBus EventBusInterface, commonProjection *CommonProjection) error {
-	participantIds, err := commonProjection.GetParticipants(ctx, s.ChatId)
+	participantIds, err := commonProjection.GetParticipantIds(ctx, s.ChatId)
 	if err != nil {
 		return err
 	}
@@ -266,7 +265,7 @@ func (s *MessageCreate) Handle(ctx context.Context, eventBus EventBusInterface, 
 		return 0, err
 	}
 
-	participantIds, err := commonProjection.GetParticipants(ctx, s.ChatId)
+	participantIds, err := commonProjection.GetParticipantIds(ctx, s.ChatId)
 	if err != nil {
 		return 0, err
 	}
@@ -336,7 +335,7 @@ func (s *MessageDelete) Handle(ctx context.Context, eventBus EventBusInterface, 
 		return err
 	}
 
-	participantIds, err := commonProjection.GetParticipants(ctx, s.ChatId)
+	participantIds, err := commonProjection.GetParticipantIds(ctx, s.ChatId)
 	if err != nil {
 		return err
 	}
@@ -382,7 +381,7 @@ func (s *MessageEdit) Handle(ctx context.Context, eventBus EventBusInterface, co
 	lastMessageId, err := commonProjection.GetLastMessageId(ctx, s.ChatId)
 	if lastMessageId == s.MessageId {
 		// if it's the last chat message then update ChatView
-		participantIds, err := commonProjection.GetParticipants(ctx, s.ChatId)
+		participantIds, err := commonProjection.GetParticipantIds(ctx, s.ChatId)
 		if err != nil {
 			return err
 		}
