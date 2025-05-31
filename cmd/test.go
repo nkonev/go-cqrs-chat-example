@@ -63,9 +63,8 @@ func runTestFunc(lgr *logger.LoggerWrapper, t *testing.T, testFunc interface{}) 
 	var s fx.Shutdowner
 	appTestFx := fxtest.New(
 		t,
-		fx.Supply(
-			lgr,
-		),
+		fx.Supply(lgr),
+		fx.Logger(lgr),
 		fx.Populate(&s),
 		fx.Provide(
 			config.CreateTestTypedConfig,

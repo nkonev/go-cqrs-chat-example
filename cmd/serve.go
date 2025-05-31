@@ -52,6 +52,7 @@ func RunServe() {
 
 	appFx := fx.New(
 		fx.Supply(lgr),
+		fx.Logger(lgr),
 		fx.Provide(
 			config.CreateTypedConfig,
 			otel.ConfigureTracePropagator,
