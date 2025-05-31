@@ -13,15 +13,16 @@ import (
 	"go-cqrs-chat-example/logger"
 	"go-cqrs-chat-example/otel"
 	"go.uber.org/fx"
-	"log/slog"
 	"os"
 	"testing"
 )
 
 func TestImport(t *testing.T) {
-	baseLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
+	cfg, err := config.CreateTypedConfig()
+	if err != nil {
+		panic(err)
+	}
+	baseLogger := logger.NewBaseLogger(os.Stdout, cfg)
 	lgr := logger.NewLogger(baseLogger)
 
 	var user1 int64 = 1
@@ -31,10 +32,10 @@ func TestImport(t *testing.T) {
 	var message1Id int64
 	var chat1Id int64
 
-	resetInfra(lgr)
+	resetInfra(lgr, cfg)
 
 	// fill with 1 chat and 1 message
-	runTestFunc(lgr, t, func(
+	runTestFunc(lgr, cfg, t, func(
 		lgr *logger.LoggerWrapper,
 		cfg *config.AppConfig,
 		restClient *client.RestClient,
@@ -88,7 +89,7 @@ func TestImport(t *testing.T) {
 	appExportFx.Run()
 	lgr.Info("Exit export command")
 
-	resetInfra(lgr)
+	resetInfra(lgr, cfg)
 
 	lgr.Info("Start import command")
 	appImportFx := fx.New(
@@ -113,7 +114,7 @@ func TestImport(t *testing.T) {
 	appImportFx.Run()
 	lgr.Info("Exit import command")
 
-	runTestFunc(lgr, t, func(
+	runTestFunc(lgr, cfg, t, func(
 		lgr *logger.LoggerWrapper,
 		cfg *config.AppConfig,
 		restClient *client.RestClient,

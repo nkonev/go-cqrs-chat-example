@@ -56,3 +56,6 @@ http:
 projections:
   chatUserView:
     maxViewableParticipants: 10
+logger:
+  level: info
+  json: false

@@ -8,8 +8,8 @@ import (
 	"go-cqrs-chat-example/app"
 	"go-cqrs-chat-example/config"
 	"go-cqrs-chat-example/kafka"
+	"go-cqrs-chat-example/logger"
 	"go.uber.org/fx"
-	"log/slog"
 	"os"
 )
 
@@ -38,16 +38,20 @@ func init() {
 }
 
 func RunExport() {
-	slogLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
+	cfg, err := config.CreateTypedConfig()
+	if err != nil {
+		panic(err)
+	}
+	baseLogger := logger.NewBaseLogger(os.Stderr, cfg)
+	lgr := logger.NewLogger(baseLogger)
 
-	slogLogger.Info("Start export command")
+	lgr.Info("Start export command")
 
 	appFx := fx.New(
-		fx.Supply(slogLogger),
+		fx.Supply(cfg),
+		fx.Supply(lgr),
+		fx.Logger(lgr),
 		fx.Provide(
-			config.CreateTypedConfig,
 			kafka.ConfigureSaramaClient,
 		),
 		fx.Invoke(
@@ -56,5 +60,5 @@ func RunExport() {
 		),
 	)
 	appFx.Run()
-	slogLogger.Info("Exit export command")
+	lgr.Info("Exit export command")
 }

@@ -14,7 +14,6 @@ import (
 	"go-cqrs-chat-example/otel"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
-	"log/slog"
 	"os"
 	"testing"
 	"time"
@@ -35,13 +34,11 @@ func shutdown() {
 
 }
 
-func resetInfra(lgr *logger.LoggerWrapper) {
+func resetInfra(lgr *logger.LoggerWrapper, cfg *config.AppConfig) {
 	appFx := fx.New(
-		fx.Supply(
-			lgr,
-		),
+		fx.Supply(cfg),
+		fx.Supply(lgr),
 		fx.Provide(
-			config.CreateTypedConfig,
 			otel.ConfigureTracePropagator,
 			otel.ConfigureTraceProvider,
 			otel.ConfigureTraceExporter,
@@ -59,15 +56,15 @@ func resetInfra(lgr *logger.LoggerWrapper) {
 	appFx.Run()
 }
 
-func runTestFunc(lgr *logger.LoggerWrapper, t *testing.T, testFunc interface{}) {
+func runTestFunc(lgr *logger.LoggerWrapper, cfg *config.AppConfig, t *testing.T, testFunc interface{}) {
 	var s fx.Shutdowner
 	appTestFx := fxtest.New(
 		t,
+		fx.Supply(cfg),
 		fx.Supply(lgr),
 		fx.Logger(lgr),
 		fx.Populate(&s),
 		fx.Provide(
-			config.CreateTestTypedConfig,
 			otel.ConfigureTracePropagator,
 			otel.ConfigureTraceProvider,
 			otel.ConfigureTraceExporter,
@@ -100,14 +97,16 @@ func runTestFunc(lgr *logger.LoggerWrapper, t *testing.T, testFunc interface{}) 
 }
 
 func startAppFull(t *testing.T, testFunc interface{}) {
-	baseLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
+	cfg, err := config.CreateTestTypedConfig()
+	if err != nil {
+		panic(err)
+	}
+	baseLogger := logger.NewBaseLogger(os.Stdout, cfg)
 	lgr := logger.NewLogger(baseLogger)
 
-	resetInfra(lgr)
+	resetInfra(lgr, cfg)
 
-	runTestFunc(lgr, t, testFunc)
+	runTestFunc(lgr, cfg, t, testFunc)
 }
 
 func waitForHealthCheck(lgr *logger.LoggerWrapper, restClient *client.RestClient, cfg *config.AppConfig) {

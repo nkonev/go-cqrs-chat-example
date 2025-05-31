@@ -13,7 +13,6 @@ import (
 	"go-cqrs-chat-example/logger"
 	"go-cqrs-chat-example/otel"
 	"go.uber.org/fx"
-	"log/slog"
 	"os"
 )
 
@@ -42,19 +41,20 @@ func init() {
 }
 
 func RunServe() {
-	baseLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
-
+	cfg, err := config.CreateTypedConfig()
+	if err != nil {
+		panic(err)
+	}
+	baseLogger := logger.NewBaseLogger(os.Stdout, cfg)
 	lgr := logger.NewLogger(baseLogger)
 
 	lgr.Info("Start serve command")
 
 	appFx := fx.New(
+		fx.Supply(cfg),
 		fx.Supply(lgr),
 		fx.Logger(lgr),
 		fx.Provide(
-			config.CreateTypedConfig,
 			otel.ConfigureTracePropagator,
 			otel.ConfigureTraceProvider,
 			otel.ConfigureTraceExporter,

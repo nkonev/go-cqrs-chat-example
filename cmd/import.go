@@ -9,9 +9,9 @@ import (
 	"go-cqrs-chat-example/cqrs"
 	"go-cqrs-chat-example/db"
 	"go-cqrs-chat-example/kafka"
+	"go-cqrs-chat-example/logger"
 	"go-cqrs-chat-example/otel"
 	"go.uber.org/fx"
-	"log/slog"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -42,16 +42,20 @@ func init() {
 }
 
 func RunImport() {
-	slogLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelDebug,
-	}))
+	cfg, err := config.CreateTypedConfig()
+	if err != nil {
+		panic(err)
+	}
+	baseLogger := logger.NewBaseLogger(os.Stdout, cfg)
+	lgr := logger.NewLogger(baseLogger)
 
-	slogLogger.Info("Start import command")
+	lgr.Info("Start import command")
 
 	appFx := fx.New(
-		fx.Supply(slogLogger),
+		fx.Supply(cfg),
+		fx.Supply(lgr),
+		fx.Logger(lgr),
 		fx.Provide(
-			config.CreateTypedConfig,
 			otel.ConfigureTracePropagator,
 			otel.ConfigureTraceProvider,
 			otel.ConfigureTraceExporter,
@@ -68,5 +72,5 @@ func RunImport() {
 		),
 	)
 	appFx.Run()
-	slogLogger.Info("Exit import command")
+	lgr.Info("Exit import command")
 }

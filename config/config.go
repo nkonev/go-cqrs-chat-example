@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/spf13/viper"
 	"go-cqrs-chat-example/app"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -96,6 +97,20 @@ type ProjectionsConfig struct {
 	ChatUserViewConfig ChatUserViewConfig `mapstructure:"chatUserView"`
 }
 
+type LoggerConfig struct {
+	Level string `mapstructure:"level"`
+	Json  bool   `mapstructure:"json"`
+}
+
+func (lc *LoggerConfig) GetLevel() slog.Leveler {
+	var lvl slog.Level
+	err := lvl.UnmarshalText([]byte(lc.Level))
+	if err != nil {
+		panic(err)
+	}
+	return lvl
+}
+
 type AppConfig struct {
 	KafkaConfig       KafkaConfig       `mapstructure:"kafka"`
 	OtlpConfig        OtlpConfig        `mapstructure:"otlp"`
@@ -104,6 +119,7 @@ type AppConfig struct {
 	CqrsConfig        CqrsConfig        `mapstructure:"cqrs"`
 	RestClientConfig  RestClientConfig  `mapstructure:"http"`
 	ProjectionsConfig ProjectionsConfig `mapstructure:"projections"`
+	LoggerConfig      LoggerConfig      `mapstructure:"logger"`
 }
 
 //go:embed config
@@ -122,9 +138,9 @@ func createTypedConfig(filename string) (*AppConfig, error) {
 	viper.SetConfigType("yaml")
 
 	if embedBytes, err := configFs.ReadFile("config/" + filename); err != nil {
-		panic(fmt.Errorf("Fatal error during reading embedded config file: %s \n", err))
-	} else if err := viper.ReadConfig(bytes.NewBuffer(embedBytes)); err != nil {
-		panic(fmt.Errorf("Fatal error during viper reading embedded config file: %s \n", err))
+		return nil, fmt.Errorf("Fatal error during reading embedded config file: %s \n", err)
+	} else if err = viper.ReadConfig(bytes.NewBuffer(embedBytes)); err != nil {
+		return nil, fmt.Errorf("Fatal error during viper reading embedded config file: %s \n", err)
 	}
 
 	viper.SetEnvPrefix(strings.ToUpper(app.TRACE_RESOURCE))
