@@ -252,9 +252,9 @@ func (m *CommonProjection) OnParticipantAdded(ctx context.Context, event *Partic
 			return err
 		}
 
-		// TODO проверить работу при пагинации,
-		//  потенциально может оказаться, что когда много станиц, для прошлых порций не обновятся
-		//  participants_count, participant_ids
+		// no problems here because we've already added participant in the previous step, there is no patching-with pagination among addable participants
+		// which would cause gaps in participants_count for the participants of current and previous iterations
+
 		// because we select chat_common, inserted from this consumer group in ChatCreated handler
 		_, err = tx.ExecContext(ctx, `
 		with 
