@@ -212,7 +212,7 @@ func (s *ParticipantDelete) Handle(ctx context.Context, eventBus EventBusInterfa
 		return err
 	}
 
-	// excluding => s.ParticipantIds is an optimization - we shouldn't refresh views for deleted participants
+	// excluding => s.ParticipantIds is an optimization - we don't need to refresh views for deleted participants
 	errOuter := commonProjection.IterateOverChatParticipantIds(ctx, dba, s.ChatId, s.ParticipantIds, func(participantIdsPortion []int64) error {
 		if len(participantIdsPortion) > 0 {
 			ui := &ChatViewRefreshed{
