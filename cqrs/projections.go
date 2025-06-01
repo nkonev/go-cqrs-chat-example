@@ -252,8 +252,10 @@ func (m *CommonProjection) OnParticipantAdded(ctx context.Context, event *Partic
 			return err
 		}
 
-		// no problems here because we've already added participants in the previous step, there is no batching-with pagination among addable participants
-		// which would cause gaps in participants_count for the participants of current and previous iterations
+		// no problems here because
+		// a) we've already added participants in the previous step
+		// b) there is no batching-with-pagination among addable participants
+		//      which would cause gaps in participants_count for the participants of current and previous iterations
 
 		// because we select chat_common, inserted from this consumer group in ChatCreated handler
 		_, err = tx.ExecContext(ctx, `
