@@ -252,6 +252,9 @@ func (m *CommonProjection) OnParticipantAdded(ctx context.Context, event *Partic
 			return err
 		}
 
+		// TODO проверить работу при пагинации,
+		//  потенциально может оказаться, что для прошлых порций не обновятся
+		//  participants_count, participant_ids
 		// because we select chat_common, inserted from this consumer group in ChatCreated handler
 		_, err = tx.ExecContext(ctx, `
 		with 
@@ -455,6 +458,11 @@ func (m *CommonProjection) setLastMessage(ctx context.Context, tx *db.Tx, partic
 
 func (m *CommonProjection) OnChatViewRefreshed(ctx context.Context, event *ChatViewRefreshed) error {
 	errOuter := db.Transact(ctx, m.db, func(tx *db.Tx) error {
+		// in oder not to have a potential race condition
+		// for example "by upserting refresh view we can resurrect view of the newly removed participant in case message add"
+		// we shouldn't upsert into chat_user_view
+		// we can only update it here
+
 		if event.UnreadMessagesAction == UnreadMessagesActionIncrease {
 			participantIdsWithoutOwner := utils.GetSliceWithout(event.OwnerId, event.ParticipantIds)
 			var ownerId *int64

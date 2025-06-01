@@ -212,7 +212,7 @@ func (s *ParticipantDelete) Handle(ctx context.Context, eventBus EventBusInterfa
 		return err
 	}
 
-	// excluding => s.ParticipantIds is a mandatory thing, because we shouldn't refresh views for deleted participants
+	// excluding => s.ParticipantIds is an optimization - we shouldn't refresh views for deleted participants
 	errOuter := commonProjection.IterateOverChatParticipantIds(ctx, dba, s.ChatId, s.ParticipantIds, func(participantIdsPortion []int64) error {
 		if len(participantIdsPortion) > 0 {
 			ui := &ChatViewRefreshed{
@@ -261,8 +261,6 @@ func (s *MessageCreate) Handle(ctx context.Context, eventBus EventBusInterface, 
 		return 0, err
 	}
 
-	// TODO a potential race condition - by refresh view we can resurrect view of the newly removed participant
-	//  introduce a flag - ChatViewRefreshed.shouldNotCreate
 	errOuter := commonProjection.IterateOverChatParticipantIds(ctx, dba, s.ChatId, nil, func(participantIdsPortion []int64) error {
 		ui := &ChatViewRefreshed{
 			AdditionalData:       s.AdditionalData,
