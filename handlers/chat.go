@@ -85,6 +85,7 @@ func (ch *ChatHandler) EditChat(g *gin.Context) {
 		ChatId:              ccd.Id,
 		Title:               ccd.Title,
 		ParticipantIdsToAdd: ccd.ParticipantIds,
+		Blog:                ccd.Blog,
 	}
 
 	err = cc.Handle(g.Request.Context(), ch.eventBus, ch.dbWrapper, ch.commonProjection)

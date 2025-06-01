@@ -12,6 +12,7 @@ type ChatCreateDto struct {
 type ChatEditDto struct {
 	Id int64 `json:"id"`
 	ChatCreateDto
+	Blog bool `json:"blog"`
 }
 
 type MessageCreateDto struct {

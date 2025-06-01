@@ -187,19 +187,74 @@ func (m *CommonProjection) OnChatCreated(ctx context.Context, event *ChatCreated
 }
 
 func (m *CommonProjection) OnChatEdited(ctx context.Context, event *ChatEdited) error {
-	_, err := m.db.ExecContext(ctx, `
-		update chat_common
-		set title = $2
-		where id = $1
-	`, event.ChatId, event.Title)
-	if err != nil {
-		return err
+	errOuter := db.Transact(ctx, m.db, func(tx *db.Tx) error {
+		r := tx.QueryRowContext(ctx, "select exists (select * from chat_common where id = $1)", event.ChatId)
+		if r.Err() != nil {
+			return r.Err()
+		}
+		var exists bool
+		err := r.Scan(&exists)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			m.lgr.WithTrace(ctx).Info("Skipping ChatEdited because there is no chat", "chat_id", event.ChatId)
+			return nil
+		}
+
+		blog, errInner := m.IsBlog(ctx, tx, event.ChatId)
+		if errInner != nil {
+			return errInner
+		}
+
+		_, errInner = tx.ExecContext(ctx, `
+			update chat_common
+			set title = $2,
+			    blog = $3
+			where id = $1
+		`, event.ChatId, event.Title, event.Blog)
+		if errInner != nil {
+			return errInner
+		}
+		m.lgr.WithTrace(ctx).Info(
+			"Common chat edited",
+			"chat_id", event.ChatId,
+			"title", event.Title,
+		)
+
+		if blog && !event.Blog {
+			// rm blog
+			_, errInner = tx.ExecContext(ctx, `
+				delete from blog
+				where id = $1
+			`, event.ChatId)
+			if errInner != nil {
+				return errInner
+			}
+		} else if !blog && event.Blog {
+			// add blog
+			_, errInner = tx.ExecContext(ctx, `
+				with blog_message as (
+					select m.* from message m where m.chat_id = $1 and m.blog_post = true
+				)	
+				insert into blog(id, owner_id, title, preview)
+				select 
+				    cast ($1 as bigint), 
+				    (select m.owner_id from blog_message m),
+				    (select c.title from chat_common c where c.id = $1),
+				    (select left(strip_tags(m.content), $2) from blog_message m)
+			`, event.ChatId, 512)
+			if errInner != nil {
+				return errInner
+			}
+		}
+
+		return nil
+	})
+
+	if errOuter != nil {
+		return errOuter
 	}
-	m.lgr.WithTrace(ctx).Info(
-		"Common chat edited",
-		"chat_id", event.ChatId,
-		"title", event.Title,
-	)
 
 	return nil
 }
@@ -850,4 +905,17 @@ func (m *CommonProjection) IterateOverChatParticipantIds(ctx context.Context, co
 		}
 	}
 	return lastError
+}
+
+func (m *CommonProjection) IsBlog(ctx context.Context, co db.CommonOperations, chatId int64) (bool, error) {
+	r := co.QueryRowContext(ctx, "select blog from chat_common where id = $1", chatId)
+	if r.Err() != nil {
+		return false, r.Err()
+	}
+	var blog bool
+	err := r.Scan(&blog)
+	if err != nil {
+		return false, err
+	}
+	return blog, nil
 }

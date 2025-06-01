@@ -19,6 +19,7 @@ type ChatEdited struct {
 	AdditionalData *AdditionalData `json:"additionalData"`
 	ChatId         int64           `json:"chatId"`
 	Title          string          `json:"title"`
+	Blog           bool            `json:"blog"`
 }
 
 type ChatDeleted struct {

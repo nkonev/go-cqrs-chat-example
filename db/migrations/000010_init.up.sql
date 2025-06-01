@@ -1,10 +1,15 @@
+CREATE OR REPLACE FUNCTION strip_tags(TEXT) RETURNS TEXT AS $$
+SELECT regexp_replace($1, '<[^>]*>', '', 'g')
+$$ LANGUAGE SQL;
+
 create sequence chat_id_sequence;
 
 create table chat_common(
     id bigint primary key,
     title varchar(512) not null,
     last_generated_message_id bigint not null default 0,
-    created_timestamp timestamp not null
+    created_timestamp timestamp not null,
+    blog boolean not null default false
 );
 
 create table chat_participant(
@@ -19,6 +24,7 @@ create table message(
     chat_id bigint not null,
     owner_id bigint not null,
     content text not null,
+    blog_post boolean not null default false,
     created_timestamp timestamp not null,
     updated_timestamp timestamp,
     primary key (chat_id, id)

@@ -17,6 +17,7 @@ type ChatEdit struct {
 	AdditionalData      *AdditionalData
 	Title               string
 	ParticipantIdsToAdd []int64
+	Blog                bool // desired state
 }
 
 type ChatDelete struct {
@@ -103,6 +104,7 @@ func (s *ChatEdit) Handle(ctx context.Context, eventBus EventBusInterface, dba *
 		AdditionalData: s.AdditionalData,
 		ChatId:         s.ChatId,
 		Title:          s.Title,
+		Blog:           s.Blog,
 	}
 	err := eventBus.Publish(ctx, cc)
 	if err != nil {
