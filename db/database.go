@@ -260,6 +260,8 @@ func (db *DB) Reset(mc config.MigrationConfig) error {
 	drop table if exists unread_messages_user_view;
 	drop table if exists technical;
 
+	drop table if exists blog;
+
 	drop table if exists %s;
 	
 	-- test
