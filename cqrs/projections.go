@@ -708,6 +708,10 @@ func (m *CommonProjection) OnMessageBlogPostMade(ctx context.Context, event *Mes
 	errOuter := db.Transact(ctx, m.db, func(tx *db.Tx) error {
 		_, errInner := m.db.ExecContext(ctx, "update message set blog_post = $3 where chat_id = $1 and id = $2", event.ChatId, event.MessageId, event.BlogPost)
 
+		// TODO rest handles (/post, /comments)
+		// TODO add flag to message and chat's Dtos
+		// TODO on message delete
+		// TODO add timestamp from event
 		errInner = m.makeBlog(ctx, tx, event.ChatId)
 		if errInner != nil {
 			return errInner
