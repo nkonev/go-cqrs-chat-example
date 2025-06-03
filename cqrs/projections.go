@@ -710,7 +710,7 @@ func (m *CommonProjection) OnMessageBlogPostMade(ctx context.Context, event *Mes
 
 		// TODO rest handles (/post, /comments)
 		// TODO add flag to message and chat's Dtos
-		// TODO invoke m.makeBlog() on message delete
+		// TODO invoke m.makeBlog() on message delete of message has blog_post = true
 		// TODO remove blog on chat delete
 		// TODO add timestamp from event
 		errInner = m.makeBlog(ctx, tx, event.ChatId)
