@@ -200,6 +200,41 @@ func (mc *MessageHandler) ReadMessage(g *gin.Context) {
 	g.Status(http.StatusOK)
 }
 
+func (mc *MessageHandler) MakeBlogPost(g *gin.Context) {
+	cid := g.Param("id")
+	chatId, err := utils.ParseInt64(cid)
+	if err != nil {
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error binding chatId", "err", err)
+		g.Status(http.StatusInternalServerError)
+		return
+	}
+
+	mid := g.Param("messageId")
+
+	messageId, err := utils.ParseInt64(mid)
+	if err != nil {
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error binding messageId", "err", err)
+		g.Status(http.StatusInternalServerError)
+		return
+	}
+
+	mr := cqrs.MakeMessageBlogPost{
+		AdditionalData: cqrs.GenerateMessageAdditionalData(),
+		ChatId:         chatId,
+		MessageId:      messageId,
+		BlogPost:       true,
+	}
+
+	err = mr.Handle(g.Request.Context(), mc.eventBus)
+	if err != nil {
+		mc.lgr.WithTrace(g.Request.Context()).Error("Error sending MakeMessageBlogPost command", "err", err)
+		g.Status(http.StatusInternalServerError)
+		return
+	}
+
+	g.Status(http.StatusOK)
+}
+
 func (mc *MessageHandler) SearchMessages(g *gin.Context) {
 	cid := g.Param("id")
 

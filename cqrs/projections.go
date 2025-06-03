@@ -233,17 +233,7 @@ func (m *CommonProjection) OnChatEdited(ctx context.Context, event *ChatEdited) 
 			}
 		} else if !blog && event.Blog {
 			// add blog
-			_, errInner = tx.ExecContext(ctx, `
-				with blog_message as (
-					select m.* from message m where m.chat_id = $1 and m.blog_post = true
-				)	
-				insert into blog(id, owner_id, title, preview)
-				select 
-				    cast ($1 as bigint), 
-				    (select m.owner_id from blog_message m),
-				    (select c.title from chat_common c where c.id = $1),
-				    (select left(strip_tags(m.content), $2) from blog_message m)
-			`, event.ChatId, 512)
+			errInner = m.makeBlog(ctx, tx, event.ChatId)
 			if errInner != nil {
 				return errInner
 			}
@@ -256,6 +246,25 @@ func (m *CommonProjection) OnChatEdited(ctx context.Context, event *ChatEdited) 
 		return errOuter
 	}
 
+	return nil
+}
+
+func (m *CommonProjection) makeBlog(ctx context.Context, tx *db.Tx, chatId int64) error {
+	_, errInner := tx.ExecContext(ctx, `
+				with blog_message as (
+					select m.* from message m where m.chat_id = $1 and m.blog_post = true
+				)	
+				insert into blog(id, owner_id, title, preview)
+				select 
+				    cast ($1 as bigint), 
+				    (select m.owner_id from blog_message m),
+				    (select c.title from chat_common c where c.id = $1),
+				    (select left(strip_tags(m.content), $2) from blog_message m)
+				on conflict(id) do update set owner_id = excluded.owner_id, title = excluded.title, preview = excluded.preview
+			`, chatId, 512)
+	if errInner != nil {
+		return errInner
+	}
 	return nil
 }
 
@@ -614,8 +623,8 @@ func (m *CommonProjection) OnChatViewRefreshed(ctx context.Context, event *ChatV
 	return nil
 }
 
-func (m *CommonProjection) setUnreadMessages(ctx context.Context, tx *db.Tx, participantIds []int64, chatId, messageId int64, needSet, needRefresh bool) error {
-	_, err := tx.ExecContext(ctx, `
+func (m *CommonProjection) setUnreadMessages(ctx context.Context, co db.CommonOperations, participantIds []int64, chatId, messageId int64, needSet, needRefresh bool) error {
+	_, err := co.ExecContext(ctx, `
 		with 
 		chat_messages as (
 			select m.id from message m where m.chat_id = $2
@@ -688,14 +697,25 @@ func (m *CommonProjection) OnUnreadMessageReaded(ctx context.Context, event *Mes
 	// actually it should be an update
 	// but we give a chance to create a row unread_messages_user_view in case lack of it
 	// so message read event has a self-healing effect
-	errOuter := db.Transact(ctx, m.db, func(tx *db.Tx) error {
-		return m.setUnreadMessages(ctx, tx, []int64{event.ParticipantId}, event.ChatId, event.MessageId, false, false)
-	})
-	if errOuter != nil {
-		return fmt.Errorf("error during read messages: %w", errOuter)
+	err := m.setUnreadMessages(ctx, m.db, []int64{event.ParticipantId}, event.ChatId, event.MessageId, false, false)
+	if err != nil {
+		return fmt.Errorf("error during read messages: %w", err)
 	}
-
 	return nil
+}
+
+func (m *CommonProjection) OnMessageBlogPostMade(ctx context.Context, event *MessageBlogPostMade) error {
+	errOuter := db.Transact(ctx, m.db, func(tx *db.Tx) error {
+		_, errInner := m.db.ExecContext(ctx, "update message set blog_post = $3 where chat_id = $1 and id = $2", event.ChatId, event.MessageId, event.BlogPost)
+
+		errInner = m.makeBlog(ctx, tx, event.ChatId)
+		if errInner != nil {
+			return errInner
+		}
+		return nil
+	})
+
+	return errOuter
 }
 
 func (m *CommonProjection) GetParticipantIdsForExternal(ctx context.Context, chatId int64, size int32, offset int64) ([]int64, error) {

@@ -56,6 +56,10 @@ curl -Ss -X GET -H 'X-UserId: 2' --url 'http://localhost:8080/chat/search' | jq
 # remove message from chat
 curl -i -X DELETE  -H 'X-UserId: 1' --url 'http://localhost:8080/chat/1/message/1'
 
+# make blog
+curl -i -X PUT -H 'Content-Type: application/json' --url 'http://localhost:8080/chat' -d '{"id": 1, "title": "new chat", "blog": true}'
+curl -i -X PUT --url 'http://localhost:8080/chat/1/message/1/blog-post'
+
 # reset offsets for consumer groups
 go run . reset
 ```

@@ -71,6 +71,13 @@ type MessageRead struct {
 	ParticipantId  int64
 }
 
+type MakeMessageBlogPost struct {
+	AdditionalData *AdditionalData
+	ChatId         int64
+	MessageId      int64
+	BlogPost       bool
+}
+
 func (s *ChatCreate) Handle(ctx context.Context, eventBus EventBusInterface, dba *db.DB, commonProjection *CommonProjection) (int64, error) {
 	chatId, err := db.TransactWithResult(ctx, dba, func(tx *db.Tx) (int64, error) {
 		return commonProjection.GetNextChatId(ctx, tx)
@@ -312,6 +319,17 @@ func (s *MessageRead) Handle(ctx context.Context, eventBus EventBusInterface, co
 	}
 
 	return nil
+}
+
+func (s *MakeMessageBlogPost) Handle(ctx context.Context, eventBus EventBusInterface) error {
+	ev := MessageBlogPostMade{
+		AdditionalData: s.AdditionalData,
+		ChatId:         s.ChatId,
+		MessageId:      s.MessageId,
+		BlogPost:       s.BlogPost,
+	}
+
+	return eventBus.Publish(ctx, &ev)
 }
 
 func (s *MessageDelete) Handle(ctx context.Context, eventBus EventBusInterface, dba *db.DB, commonProjection *CommonProjection, userId int64) error {

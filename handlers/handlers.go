@@ -35,6 +35,7 @@ func bindHttpHandlers(
 	ginRouter.DELETE("/chat/:id/message/:messageId", messageHandler.DeleteMessage)
 	ginRouter.PUT("/chat/:id/message/:messageId/read", messageHandler.ReadMessage)
 	ginRouter.GET("/chat/:id/message/search", messageHandler.SearchMessages)
+	ginRouter.PUT("/chat/:id/message/:messageId/blog-post", messageHandler.MakeBlogPost)
 
 	ginRouter.GET("/internal/health", func(g *gin.Context) {
 		g.Status(http.StatusOK)

@@ -108,6 +108,13 @@ type MessageReaded struct {
 	MessageId      int64           `json:"messageId"`
 }
 
+type MessageBlogPostMade struct {
+	AdditionalData *AdditionalData `json:"additionalData"`
+	ChatId         int64           `json:"chatId"`
+	MessageId      int64           `json:"messageId"`
+	BlogPost       bool            `json:"blogPost"`
+}
+
 type MessageDeleted struct {
 	AdditionalData *AdditionalData `json:"additionalData"`
 	ChatId         int64           `json:"chatId"`
@@ -160,6 +167,10 @@ func (s *MessageReaded) GetPartitionKey() string {
 	return utils.ToString(s.ChatId)
 }
 
+func (s *MessageBlogPostMade) GetPartitionKey() string {
+	return utils.ToString(s.ChatId)
+}
+
 func (s *MessageDeleted) GetPartitionKey() string {
 	return utils.ToString(s.ChatId)
 }
@@ -202,6 +213,10 @@ func (s *ChatViewRefreshed) Name() string {
 
 func (s *MessageReaded) Name() string {
 	return "messageReaded"
+}
+
+func (s *MessageBlogPostMade) Name() string {
+	return "messageBlogPostMade"
 }
 
 func (s *MessageDeleted) Name() string {
