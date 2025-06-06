@@ -308,10 +308,10 @@ func (m *CommonProjection) OnParticipantAdded(ctx context.Context, event *Partic
 		with input_data as (
 			select unnest(cast ($1 as bigint[])) as user_id, cast ($2 as bigint) as chat_id
 		)
-		insert into chat_participant(user_id, chat_id)
-		select user_id, chat_id from input_data
+		insert into chat_participant(user_id, chat_id, created_timestamp)
+		select user_id, chat_id, $3 from input_data
 		on conflict(user_id, chat_id) do nothing
-	`, event.ParticipantIds, event.ChatId)
+	`, event.ParticipantIds, event.ChatId, event.AdditionalData.CreatedAt)
 		if err != nil {
 			return err
 		}
@@ -325,13 +325,13 @@ func (m *CommonProjection) OnParticipantAdded(ctx context.Context, event *Partic
 		_, err = tx.ExecContext(ctx, `
 		with 
 		this_chat_participants as (
-			select user_id from chat_participant where chat_id = $2
+			select user_id, created_timestamp from chat_participant where chat_id = $2
 		),
 		chat_participant_count as (
 			select count (*) as count from this_chat_participants
 		),
 		chat_participants_last_n as (
-			select user_id from this_chat_participants order by user_id desc limit $4
+			select user_id from this_chat_participants order by created_timestamp desc limit $4
 		),
 		user_input as (
 			select unnest(cast ($1 as bigint[])) as user_id
@@ -588,13 +588,13 @@ func (m *CommonProjection) OnChatViewRefreshed(ctx context.Context, event *ChatV
 			_, err := tx.ExecContext(ctx, `
 					with
 					this_chat_participants as (
-						select user_id from chat_participant where chat_id = $2
+						select user_id, created_timestamp from chat_participant where chat_id = $2
 					),
 					chat_participant_count as (
 						select count (*) as count from this_chat_participants
 					),
 					chat_participants_last_n as (
-						select user_id from this_chat_participants order by user_id desc limit $3
+						select user_id from this_chat_participants order by created_timestamp desc limit $3
 					)
 					UPDATE chat_user_view 
 					SET 

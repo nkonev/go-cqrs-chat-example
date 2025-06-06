@@ -15,6 +15,7 @@ create table chat_common(
 create table chat_participant(
     user_id bigint not null,
     chat_id bigint not null,
+    created_timestamp timestamp not null,
     primary key(user_id, chat_id)
 );
 SELECT create_distributed_table('chat_participant', 'chat_id');
