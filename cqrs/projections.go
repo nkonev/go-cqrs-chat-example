@@ -721,7 +721,9 @@ func (m *CommonProjection) OnMessageBlogPostMade(ctx context.Context, event *Mes
 		}
 
 		// TODO rest handles (/post, /comments)
-		// TODO invoke m.refreshBlog() on message delete of message has blog_post = true
+		// TODO invoke m.refreshBlog() on message delete if message has blog_post = true
+		// TODO invoke m.refreshBlog() on message edit if message has blog_post = true
+		// TODO invoke m.refreshBlog() on chat edit if chat has blog = true
 		// TODO remove blog on chat delete
 		// TODO test
 		errInner = m.refreshBlog(ctx, tx, event.ChatId, event.AdditionalData.CreatedAt)
