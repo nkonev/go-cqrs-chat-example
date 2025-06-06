@@ -234,7 +234,7 @@ func (m *CommonProjection) OnChatEdited(ctx context.Context, event *ChatEdited) 
 			}
 		} else if !blog && event.Blog {
 			// add blog
-			errInner = m.makeBlog(ctx, tx, event.ChatId, event.AdditionalData.CreatedAt)
+			errInner = m.refreshBlog(ctx, tx, event.ChatId, event.AdditionalData.CreatedAt)
 			if errInner != nil {
 				return errInner
 			}
@@ -250,7 +250,7 @@ func (m *CommonProjection) OnChatEdited(ctx context.Context, event *ChatEdited) 
 	return nil
 }
 
-func (m *CommonProjection) makeBlog(ctx context.Context, tx *db.Tx, chatId int64, createdTime time.Time) error {
+func (m *CommonProjection) refreshBlog(ctx context.Context, tx *db.Tx, chatId int64, createdTime time.Time) error {
 	_, errInner := tx.ExecContext(ctx, `
 				with blog_message as (
 					select m.* from message m where m.chat_id = $1 and m.blog_post = true
@@ -711,11 +711,10 @@ func (m *CommonProjection) OnMessageBlogPostMade(ctx context.Context, event *Mes
 		_, errInner := m.db.ExecContext(ctx, "update message set blog_post = $3 where chat_id = $1 and id = $2", event.ChatId, event.MessageId, event.BlogPost)
 
 		// TODO rest handles (/post, /comments)
-		// TODO add flag to message and chat's Dtos
-		// TODO invoke m.makeBlog() on message delete of message has blog_post = true
+		// TODO invoke m.refreshBlog() on message delete of message has blog_post = true
 		// TODO remove blog on chat delete
 		// TODO test
-		errInner = m.makeBlog(ctx, tx, event.ChatId, event.AdditionalData.CreatedAt)
+		errInner = m.refreshBlog(ctx, tx, event.ChatId, event.AdditionalData.CreatedAt)
 		if errInner != nil {
 			return errInner
 		}
@@ -785,16 +784,17 @@ func (m *CommonProjection) GetLastMessageId(ctx context.Context, chatId int64) (
 }
 
 type MessageViewDto struct {
-	Id      int64  `json:"id"`
-	OwnerId int64  `json:"ownerId"`
-	Content string `json:"content"`
+	Id       int64  `json:"id"`
+	OwnerId  int64  `json:"ownerId"`
+	Content  string `json:"content"`
+	BlogPost bool   `json:"blogPost"`
 }
 
 func (m *CommonProjection) GetMessages(ctx context.Context, chatId int64) ([]MessageViewDto, error) {
 	ma := []MessageViewDto{}
 
 	rows, err := m.db.QueryContext(ctx, `
-		select id, owner_id, content 
+		select id, owner_id, content, blog_post
 		from message 
 		where chat_id = $1 
 		order by id desc
@@ -805,7 +805,7 @@ func (m *CommonProjection) GetMessages(ctx context.Context, chatId int64) ([]Mes
 	defer rows.Close()
 	for rows.Next() {
 		var cd MessageViewDto
-		err = rows.Scan(&cd.Id, &cd.OwnerId, &cd.Content)
+		err = rows.Scan(&cd.Id, &cd.OwnerId, &cd.Content, &cd.BlogPost)
 		if err != nil {
 			return ma, err
 		}
@@ -824,6 +824,7 @@ type ChatViewDto struct {
 	LastMessageContent *string `json:"lastMessageContent"`
 	ParticipantsCount  int64   `json:"participantsCount"`
 	ParticipantIds     []int64 `json:"participantIds"` // ids of last N participants
+	Blog               bool    `json:"blog"`
 }
 
 func (m *CommonProjection) GetChats(ctx context.Context, participantId int64) ([]ChatViewDto, error) {
@@ -842,9 +843,11 @@ func (m *CommonProjection) GetChats(ctx context.Context, participantId int64) ([
 		    ch.last_message_owner_id,
 		    ch.last_message_content,
 		    ch.participants_count,
-		    ch.participant_ids
+		    ch.participant_ids,
+		    b.id is not null as blog
 		from chat_user_view ch
 		join unread_messages_user_view m on (ch.id = m.chat_id and m.user_id = $1)
+		left join blog b on ch.id = b.id
 		where ch.user_id = $1
 		order by (ch.pinned, ch.updated_timestamp, ch.id) desc 
 	`, participantId)
@@ -855,7 +858,7 @@ func (m *CommonProjection) GetChats(ctx context.Context, participantId int64) ([
 	for rows.Next() {
 		var cd ChatViewDto
 		var participantIds = pgtype.Int8Array{}
-		err = rows.Scan(&cd.Id, &cd.Title, &cd.Pinned, &cd.UnreadMessages, &cd.LastMessageId, &cd.LastMessageOwnerId, &cd.LastMessageContent, &cd.ParticipantsCount, &participantIds)
+		err = rows.Scan(&cd.Id, &cd.Title, &cd.Pinned, &cd.UnreadMessages, &cd.LastMessageId, &cd.LastMessageOwnerId, &cd.LastMessageContent, &cd.ParticipantsCount, &participantIds, &cd.Blog)
 		if err != nil {
 			return ma, err
 		}
