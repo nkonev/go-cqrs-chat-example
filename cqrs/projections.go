@@ -255,11 +255,12 @@ func (m *CommonProjection) refreshBlog(ctx context.Context, tx *db.Tx, chatId in
 				with blog_message as (
 					select m.* from message m where m.chat_id = $1 and m.blog_post = true
 				)	
-				insert into blog(id, owner_id, title, preview, created_timestamp)
+				insert into blog(id, owner_id, title, post, preview, created_timestamp)
 				select 
 				    cast ($1 as bigint), 
 				    (select m.owner_id from blog_message m),
 				    (select c.title from chat_common c where c.id = $1),
+				    (select m.content from blog_message m),
 				    (select left(strip_tags(m.content), $2) from blog_message m),
 					$3
 				on conflict(id) do update set owner_id = excluded.owner_id, title = excluded.title, preview = excluded.preview, created_timestamp = excluded.created_timestamp
@@ -708,7 +709,16 @@ func (m *CommonProjection) OnUnreadMessageReaded(ctx context.Context, event *Mes
 
 func (m *CommonProjection) OnMessageBlogPostMade(ctx context.Context, event *MessageBlogPostMade) error {
 	errOuter := db.Transact(ctx, m.db, func(tx *db.Tx) error {
-		_, errInner := m.db.ExecContext(ctx, "update message set blog_post = $3 where chat_id = $1 and id = $2", event.ChatId, event.MessageId, event.BlogPost)
+		// unset previous
+		_, errInner := m.db.ExecContext(ctx, "update message set blog_post = false where chat_id = $1 and id = (select id from message where chat_id = $1 and blog_post = true)", event.ChatId)
+		if errInner != nil {
+			return errInner
+		}
+
+		_, errInner = m.db.ExecContext(ctx, "update message set blog_post = $3 where chat_id = $1 and id = $2", event.ChatId, event.MessageId, event.BlogPost)
+		if errInner != nil {
+			return errInner
+		}
 
 		// TODO rest handles (/post, /comments)
 		// TODO invoke m.refreshBlog() on message delete of message has blog_post = true
