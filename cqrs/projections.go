@@ -10,6 +10,7 @@ import (
 	"go-cqrs-chat-example/logger"
 	"go-cqrs-chat-example/utils"
 	"slices"
+	"time"
 )
 
 type CommonProjection struct {
@@ -233,7 +234,7 @@ func (m *CommonProjection) OnChatEdited(ctx context.Context, event *ChatEdited) 
 			}
 		} else if !blog && event.Blog {
 			// add blog
-			errInner = m.makeBlog(ctx, tx, event.ChatId)
+			errInner = m.makeBlog(ctx, tx, event.ChatId, event.AdditionalData.CreatedAt)
 			if errInner != nil {
 				return errInner
 			}
@@ -249,19 +250,20 @@ func (m *CommonProjection) OnChatEdited(ctx context.Context, event *ChatEdited) 
 	return nil
 }
 
-func (m *CommonProjection) makeBlog(ctx context.Context, tx *db.Tx, chatId int64) error {
+func (m *CommonProjection) makeBlog(ctx context.Context, tx *db.Tx, chatId int64, createdTime time.Time) error {
 	_, errInner := tx.ExecContext(ctx, `
 				with blog_message as (
 					select m.* from message m where m.chat_id = $1 and m.blog_post = true
 				)	
-				insert into blog(id, owner_id, title, preview)
+				insert into blog(id, owner_id, title, preview, created_timestamp)
 				select 
 				    cast ($1 as bigint), 
 				    (select m.owner_id from blog_message m),
 				    (select c.title from chat_common c where c.id = $1),
-				    (select left(strip_tags(m.content), $2) from blog_message m)
-				on conflict(id) do update set owner_id = excluded.owner_id, title = excluded.title, preview = excluded.preview
-			`, chatId, 512)
+				    (select left(strip_tags(m.content), $2) from blog_message m),
+					$3
+				on conflict(id) do update set owner_id = excluded.owner_id, title = excluded.title, preview = excluded.preview, created_timestamp = excluded.created_timestamp
+			`, chatId, 512, createdTime)
 	if errInner != nil {
 		return errInner
 	}
@@ -712,9 +714,8 @@ func (m *CommonProjection) OnMessageBlogPostMade(ctx context.Context, event *Mes
 		// TODO add flag to message and chat's Dtos
 		// TODO invoke m.makeBlog() on message delete of message has blog_post = true
 		// TODO remove blog on chat delete
-		// TODO add timestamp from event
 		// TODO test
-		errInner = m.makeBlog(ctx, tx, event.ChatId)
+		errInner = m.makeBlog(ctx, tx, event.ChatId, event.AdditionalData.CreatedAt)
 		if errInner != nil {
 			return errInner
 		}
