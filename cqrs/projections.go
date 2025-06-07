@@ -190,16 +190,11 @@ func (m *CommonProjection) OnChatCreated(ctx context.Context, event *ChatCreated
 
 func (m *CommonProjection) OnChatEdited(ctx context.Context, event *ChatEdited) error {
 	errOuter := db.Transact(ctx, m.db, func(tx *db.Tx) error {
-		r := tx.QueryRowContext(ctx, "select exists (select * from chat_common where id = $1)", event.ChatId)
-		if r.Err() != nil {
-			return r.Err()
-		}
-		var exists bool
-		err := r.Scan(&exists)
+		chatExists, err := m.checkChatExists(ctx, tx, event.ChatId)
 		if err != nil {
 			return err
 		}
-		if !exists {
+		if !chatExists {
 			m.lgr.WithTrace(ctx).Info("Skipping ChatEdited because there is no chat", "chat_id", event.ChatId)
 			return nil
 		}
@@ -294,16 +289,11 @@ func (m *CommonProjection) initializeMessageUnreadMultipleParticipants(ctx conte
 
 func (m *CommonProjection) OnParticipantAdded(ctx context.Context, event *ParticipantsAdded) error {
 	errOuter := db.Transact(ctx, m.db, func(tx *db.Tx) error {
-		r := tx.QueryRowContext(ctx, "select exists (select * from chat_common where id = $1)", event.ChatId)
-		if r.Err() != nil {
-			return r.Err()
-		}
-		var exists bool
-		err := r.Scan(&exists)
+		chatExists, err := m.checkChatExists(ctx, tx, event.ChatId)
 		if err != nil {
 			return err
 		}
-		if !exists {
+		if !chatExists {
 			m.lgr.WithTrace(ctx).Info("Skipping ParticipantsAdded because there is no chat", "chat_id", event.ChatId)
 			return nil
 		}
@@ -485,21 +475,34 @@ func (m *CommonProjection) OnMessageCreated(ctx context.Context, event *MessageC
 }
 
 func (m *CommonProjection) OnMessageEdited(ctx context.Context, event *MessageEdited) error {
-	_, err := m.db.ExecContext(ctx, `
-		update message
-		set	content = $3, updated_timestamp = $4
-		where chat_id = $2 and id = $1 
-	`, event.Id, event.ChatId, event.Content, event.AdditionalData.CreatedAt)
-	if err != nil {
-		return err
-	}
-	m.lgr.WithTrace(ctx).Info(
-		"Handling message edited",
-		"id", event.Id,
-		"chat_id", event.ChatId,
-	)
+	errOuter := db.Transact(ctx, m.db, func(tx *db.Tx) error {
+		messageExists, errInner := m.checkMessageExists(ctx, tx, event.ChatId, event.Id)
+		if errInner != nil {
+			return errInner
+		}
+		if !messageExists {
+			m.lgr.WithTrace(ctx).Info("Skipping MessageEdited because there is no message", "chat_id", event.ChatId, "message_id", event.Id)
+			return nil
+		}
 
-	return nil
+		_, err := tx.ExecContext(ctx, `
+			update message
+			set	content = $3, updated_timestamp = $4
+			where chat_id = $2 and id = $1 
+		`, event.Id, event.ChatId, event.Content, event.AdditionalData.CreatedAt)
+		if err != nil {
+			return err
+		}
+		m.lgr.WithTrace(ctx).Info(
+			"Handling message edited",
+			"id", event.Id,
+			"chat_id", event.ChatId,
+			"message_id", event.Id,
+		)
+		return nil
+	})
+
+	return errOuter
 }
 
 func (m *CommonProjection) setLastMessage(ctx context.Context, tx *db.Tx, participantIds []int64, chatId int64) error {
@@ -708,43 +711,59 @@ func (m *CommonProjection) OnUnreadMessageReaded(ctx context.Context, event *Mes
 	return nil
 }
 
+func (m *CommonProjection) checkChatExists(ctx context.Context, co db.CommonOperations, chatId int64) (bool, error) {
+	rc := co.QueryRowContext(ctx, "select exists (select * from chat_common where id = $1)", chatId)
+	if rc.Err() != nil {
+		return false, rc.Err()
+	}
+	var chatExists bool
+	err := rc.Scan(&chatExists)
+	if err != nil {
+		return false, err
+	}
+	return chatExists, nil
+}
+
+func (m *CommonProjection) checkMessageExists(ctx context.Context, co db.CommonOperations, chatId, messageId int64) (bool, error) {
+	rm := co.QueryRowContext(ctx, "select exists (select * from message where chat_id = $1 and id = $2)", chatId, messageId)
+	if rm.Err() != nil {
+		return false, rm.Err()
+	}
+	var messageExists bool
+	err := rm.Scan(&messageExists)
+	if err != nil {
+		return false, err
+	}
+	return messageExists, nil
+}
+
 func (m *CommonProjection) OnMessageBlogPostMade(ctx context.Context, event *MessageBlogPostMade) error {
 	errOuter := db.Transact(ctx, m.db, func(tx *db.Tx) error {
-		rc := tx.QueryRowContext(ctx, "select exists (select * from chat_common where id = $1)", event.ChatId)
-		if rc.Err() != nil {
-			return rc.Err()
-		}
-		var chatExists bool
-		err := rc.Scan(&chatExists)
-		if err != nil {
-			return err
+		chatExists, errInner := m.checkChatExists(ctx, tx, event.ChatId)
+		if errInner != nil {
+			return errInner
 		}
 		if !chatExists {
 			m.lgr.WithTrace(ctx).Info("Skipping MessageBlogPostMade because there is no chat", "chat_id", event.ChatId)
 			return nil
 		}
 
-		rm := tx.QueryRowContext(ctx, "select exists (select * from message where chat_id = $1)", event.ChatId)
-		if rm.Err() != nil {
-			return rm.Err()
-		}
-		var messageExists bool
-		err = rm.Scan(&messageExists)
-		if err != nil {
-			return err
+		messageExists, errInner := m.checkMessageExists(ctx, tx, event.ChatId, event.MessageId)
+		if errInner != nil {
+			return errInner
 		}
 		if !messageExists {
-			m.lgr.WithTrace(ctx).Info("Skipping MessageBlogPostMade because there is no message", "chat_id", event.ChatId)
+			m.lgr.WithTrace(ctx).Info("Skipping MessageBlogPostMade because there is no message", "chat_id", event.ChatId, "message_id", event.MessageId)
 			return nil
 		}
 
 		// unset previous
-		_, errInner := m.db.ExecContext(ctx, "update message set blog_post = false where chat_id = $1 and id = (select id from message where chat_id = $1 and blog_post = true)", event.ChatId)
+		_, errInner = tx.ExecContext(ctx, "update message set blog_post = false where chat_id = $1 and id = (select id from message where chat_id = $1 and blog_post = true)", event.ChatId)
 		if errInner != nil {
 			return errInner
 		}
 
-		_, errInner = m.db.ExecContext(ctx, "update message set blog_post = $3 where chat_id = $1 and id = $2", event.ChatId, event.MessageId, event.BlogPost)
+		_, errInner = tx.ExecContext(ctx, "update message set blog_post = $3 where chat_id = $1 and id = $2", event.ChatId, event.MessageId, event.BlogPost)
 		if errInner != nil {
 			return errInner
 		}
