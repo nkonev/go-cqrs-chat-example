@@ -442,11 +442,23 @@ func (m *CommonProjection) OnParticipantRemoved(ctx context.Context, event *Part
 
 func (m *CommonProjection) OnMessageRemoved(ctx context.Context, event *MessageDeleted) error {
 	errOuter := db.Transact(ctx, m.db, func(tx *db.Tx) error {
-		_, err := tx.ExecContext(ctx, `
-		delete from message where (id, chat_id) = ($1, $2)
-	`, event.MessageId, event.ChatId)
+		messageBlogPost, err := m.isMessageBlogPost(ctx, tx, event.ChatId, event.MessageId)
 		if err != nil {
 			return err
+		}
+
+		_, err = tx.ExecContext(ctx, `
+			delete from message where (id, chat_id) = ($1, $2)
+		`, event.MessageId, event.ChatId)
+		if err != nil {
+			return err
+		}
+
+		if messageBlogPost {
+			err = m.refreshBlog(ctx, tx, event.ChatId, event.AdditionalData.CreatedAt)
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -514,7 +526,12 @@ func (m *CommonProjection) OnMessageEdited(ctx context.Context, event *MessageEd
 			return nil
 		}
 
-		_, err := tx.ExecContext(ctx, `
+		messageBlogPost, err := m.isMessageBlogPost(ctx, tx, event.ChatId, event.Id)
+		if err != nil {
+			return err
+		}
+
+		_, err = tx.ExecContext(ctx, `
 			update message
 			set	content = $3, updated_timestamp = $4
 			where chat_id = $2 and id = $1 
@@ -522,6 +539,14 @@ func (m *CommonProjection) OnMessageEdited(ctx context.Context, event *MessageEd
 		if err != nil {
 			return err
 		}
+
+		if messageBlogPost {
+			err = m.refreshBlog(ctx, tx, event.ChatId, event.AdditionalData.CreatedAt)
+			if err != nil {
+				return err
+			}
+		}
+
 		m.lgr.WithTrace(ctx).Info(
 			"Handling message edited",
 			"id", event.Id,
@@ -797,8 +822,6 @@ func (m *CommonProjection) OnMessageBlogPostMade(ctx context.Context, event *Mes
 			return errInner
 		}
 
-		// TODO invoke m.refreshBlog() on message delete if message has blog_post = true
-		// TODO invoke m.refreshBlog() on message edit if message has blog_post = true
 		// TODO test
 		errInner = m.refreshBlog(ctx, tx, event.ChatId, event.AdditionalData.CreatedAt)
 		if errInner != nil {
