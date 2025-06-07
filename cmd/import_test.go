@@ -49,6 +49,7 @@ func TestImport(t *testing.T) {
 		chat1Id, err = restClient.CreateChat(ctx, user1, chat1Name)
 		assert.NoError(t, err, "error in creating chat")
 		assert.True(t, chat1Id > 0)
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		message1Id, err = restClient.CreateMessage(ctx, user1, chat1Id, message1Text)
 		assert.NoError(t, err, "error in creating message")
