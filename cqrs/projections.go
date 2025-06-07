@@ -843,17 +843,19 @@ func (m *CommonProjection) GetLastMessageId(ctx context.Context, chatId int64) (
 }
 
 type MessageViewDto struct {
-	Id       int64  `json:"id"`
-	OwnerId  int64  `json:"ownerId"`
-	Content  string `json:"content"`
-	BlogPost bool   `json:"blogPost"`
+	Id        int64      `json:"id"`
+	OwnerId   int64      `json:"ownerId"`
+	Content   string     `json:"content"`
+	BlogPost  bool       `json:"blogPost"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt *time.Time `json:"updatedAt"`
 }
 
 func (m *CommonProjection) GetMessages(ctx context.Context, chatId int64) ([]MessageViewDto, error) {
 	ma := []MessageViewDto{}
 
 	rows, err := m.db.QueryContext(ctx, `
-		select id, owner_id, content, blog_post
+		select id, owner_id, content, blog_post, created_timestamp, updated_timestamp
 		from message 
 		where chat_id = $1 
 		order by id desc
@@ -864,7 +866,7 @@ func (m *CommonProjection) GetMessages(ctx context.Context, chatId int64) ([]Mes
 	defer rows.Close()
 	for rows.Next() {
 		var cd MessageViewDto
-		err = rows.Scan(&cd.Id, &cd.OwnerId, &cd.Content, &cd.BlogPost)
+		err = rows.Scan(&cd.Id, &cd.OwnerId, &cd.Content, &cd.BlogPost, &cd.CreatedAt, &cd.UpdatedAt)
 		if err != nil {
 			return ma, err
 		}
@@ -874,16 +876,17 @@ func (m *CommonProjection) GetMessages(ctx context.Context, chatId int64) ([]Mes
 }
 
 type ChatViewDto struct {
-	Id                 int64   `json:"id"`
-	Title              string  `json:"title"`
-	Pinned             bool    `json:"pinned"`
-	UnreadMessages     int64   `json:"unreadMessages"`
-	LastMessageId      *int64  `json:"lastMessageId"`
-	LastMessageOwnerId *int64  `json:"lastMessageOwnerId"`
-	LastMessageContent *string `json:"lastMessageContent"`
-	ParticipantsCount  int64   `json:"participantsCount"`
-	ParticipantIds     []int64 `json:"participantIds"` // ids of last N participants
-	Blog               bool    `json:"blog"`
+	Id                 int64     `json:"id"`
+	Title              string    `json:"title"`
+	Pinned             bool      `json:"pinned"`
+	UnreadMessages     int64     `json:"unreadMessages"`
+	LastMessageId      *int64    `json:"lastMessageId"`
+	LastMessageOwnerId *int64    `json:"lastMessageOwnerId"`
+	LastMessageContent *string   `json:"lastMessageContent"`
+	ParticipantsCount  int64     `json:"participantsCount"`
+	ParticipantIds     []int64   `json:"participantIds"` // ids of last N participants
+	Blog               bool      `json:"blog"`
+	UpdatedAt          time.Time `json:"updatedAt"`
 }
 
 func (m *CommonProjection) GetChats(ctx context.Context, participantId int64) ([]ChatViewDto, error) {
@@ -903,7 +906,8 @@ func (m *CommonProjection) GetChats(ctx context.Context, participantId int64) ([
 		    ch.last_message_content,
 		    ch.participants_count,
 		    ch.participant_ids,
-		    b.id is not null as blog
+		    b.id is not null as blog,
+		    ch.updated_timestamp
 		from chat_user_view ch
 		join unread_messages_user_view m on (ch.id = m.chat_id and m.user_id = $1)
 		left join blog b on ch.id = b.id
@@ -917,7 +921,7 @@ func (m *CommonProjection) GetChats(ctx context.Context, participantId int64) ([
 	for rows.Next() {
 		var cd ChatViewDto
 		var participantIds = pgtype.Int8Array{}
-		err = rows.Scan(&cd.Id, &cd.Title, &cd.Pinned, &cd.UnreadMessages, &cd.LastMessageId, &cd.LastMessageOwnerId, &cd.LastMessageContent, &cd.ParticipantsCount, &participantIds, &cd.Blog)
+		err = rows.Scan(&cd.Id, &cd.Title, &cd.Pinned, &cd.UnreadMessages, &cd.LastMessageId, &cd.LastMessageOwnerId, &cd.LastMessageContent, &cd.ParticipantsCount, &participantIds, &cd.Blog, &cd.UpdatedAt)
 		if err != nil {
 			return ma, err
 		}
@@ -1097,16 +1101,18 @@ func (m *CommonProjection) getBlogPostMessageId(ctx context.Context, co db.Commo
 }
 
 type CommentViewDto struct {
-	Id      int64  `json:"id"`
-	OwnerId int64  `json:"ownerId"`
-	Content string `json:"content"`
+	Id        int64      `json:"id"`
+	OwnerId   int64      `json:"ownerId"`
+	Content   string     `json:"content"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt *time.Time `json:"updatedAt"`
 }
 
 func (m *CommonProjection) getComments(ctx context.Context, co db.CommonOperations, blogId, postMessageId int64) ([]CommentViewDto, error) {
 	ma := []CommentViewDto{}
 
 	rows, err := co.QueryContext(ctx, `
-		select id, owner_id, content
+		select id, owner_id, content, created_timestamp, updated_timestamp
 		from message 
 		where chat_id = $1 and id > $2
 		order by id desc
@@ -1117,7 +1123,7 @@ func (m *CommonProjection) getComments(ctx context.Context, co db.CommonOperatio
 	defer rows.Close()
 	for rows.Next() {
 		var cd CommentViewDto
-		err = rows.Scan(&cd.Id, &cd.OwnerId, &cd.Content)
+		err = rows.Scan(&cd.Id, &cd.OwnerId, &cd.Content, &cd.CreatedAt, &cd.UpdatedAt)
 		if err != nil {
 			return ma, err
 		}

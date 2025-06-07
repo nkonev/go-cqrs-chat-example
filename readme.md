@@ -60,6 +60,7 @@ curl -i -X DELETE  -H 'X-UserId: 1' --url 'http://localhost:8080/chat/1/message/
 curl -i -X PUT -H 'Content-Type: application/json' --url 'http://localhost:8080/chat' -d '{"id": 1, "title": "new chat", "blog": true}'
 curl -i -X PUT --url 'http://localhost:8080/chat/1/message/1/blog-post'
 
+# show blog
 curl -Ss -X GET --url 'http://localhost:8080/blog/search' | jq
 curl -Ss -X GET --url 'http://localhost:8080/blog/1' | jq
 curl -Ss -X GET --url 'http://localhost:8080/blog/1/comment/search' | jq
