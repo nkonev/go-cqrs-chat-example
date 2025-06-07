@@ -52,12 +52,13 @@ func (rc *RestClient) CreateChat(ctx context.Context, behalfUserId int64, chatNa
 	return resp.Id, nil
 }
 
-func (rc *RestClient) EditChat(ctx context.Context, chatId int64, chatName string) error {
+func (rc *RestClient) EditChat(ctx context.Context, chatId int64, chatName string, blog bool) error {
 	req := handlers.ChatEditDto{
 		Id: chatId,
 		ChatCreateDto: handlers.ChatCreateDto{
 			Title: chatName,
 		},
+		Blog: blog,
 	}
 	err := queryNoResponse[handlers.ChatEditDto](ctx, rc, 0, "PUT", "/chat", "chat.Edit", &req)
 	if err != nil {
@@ -76,6 +77,10 @@ func (rc *RestClient) DeleteChat(ctx context.Context, chatId int64) error {
 
 func (rc *RestClient) GetChatsByUserId(ctx context.Context, behalfUserId int64) ([]cqrs.ChatViewDto, error) {
 	return query[any, []cqrs.ChatViewDto](ctx, rc, behalfUserId, "GET", "/chat/search", "chat.Search", nil)
+}
+
+func (rc *RestClient) SearchBlogs(ctx context.Context) ([]cqrs.BlogViewDto, error) {
+	return query[any, []cqrs.BlogViewDto](ctx, rc, 0, "GET", "/blog/search", "blog.Search", nil)
 }
 
 func (rc *RestClient) CreateMessage(ctx context.Context, behalfUserId int64, chatId int64, text string) (int64, error) {
@@ -105,6 +110,14 @@ func (rc *RestClient) DeleteMessage(ctx context.Context, behalfUserId int64, cha
 
 func (rc *RestClient) GetMessages(ctx context.Context, behalfUserId int64, chatId int64) ([]cqrs.MessageViewDto, error) {
 	return query[any, []cqrs.MessageViewDto](ctx, rc, behalfUserId, "GET", "/chat/"+utils.ToString(chatId)+"/message/search", "message.Search", nil)
+}
+
+func (rc *RestClient) MakeMessageBlogPost(ctx context.Context, chatId, messageId int64) error {
+	return queryNoResponse[any](ctx, rc, 0, "PUT", "/chat/"+utils.ToString(chatId)+"/message/"+utils.ToString(messageId)+"/blog-post", "message.MakeBlogPost", nil)
+}
+
+func (rc *RestClient) SearchBlogComments(ctx context.Context, blogId int64) ([]cqrs.CommentViewDto, error) {
+	return query[any, []cqrs.CommentViewDto](ctx, rc, 0, "GET", "/blog/"+utils.ToString(blogId)+"/comment/search", "blog.SearchComments", nil)
 }
 
 func (rc *RestClient) AddChatParticipants(ctx context.Context, chatId int64, participantIds []int64) error {
@@ -188,7 +201,7 @@ func queryRawResponse[ReqDto any](ctx context.Context, rc *RestClient, behalfUse
 	code := httpResp.StatusCode
 	if !(code >= 200 && code < 300) {
 		rc.lgr.WithTrace(ctx).Warn(fmt.Sprintf("%v response responded non-2xx code: ", opName), "code", code)
-		return nil, errors.New(fmt.Sprintf("%v response responded non-2xx code", opName))
+		return nil, errors.New(fmt.Sprintf("%v response responded non-2xx code: %v", opName, code))
 	}
 
 	if rc.cfg.RestClientConfig.Dump {

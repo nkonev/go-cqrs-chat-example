@@ -63,10 +63,15 @@ func (mc *MessageHandler) CreateMessage(g *gin.Context) {
 		OwnerId:        userId,
 	}
 
-	mid, err := cc.Handle(g.Request.Context(), mc.eventBus, mc.dbWrapper, mc.commonProjection)
+	mid, wasAdded, err := cc.Handle(g.Request.Context(), mc.eventBus, mc.dbWrapper, mc.commonProjection)
 	if err != nil {
 		mc.lgr.WithTrace(g.Request.Context()).Error("Error sending MessageCreate command", "err", err)
 		g.Status(http.StatusInternalServerError)
+		return
+	}
+
+	if !wasAdded {
+		g.Status(http.StatusTeapot)
 		return
 	}
 

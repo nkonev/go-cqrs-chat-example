@@ -252,10 +252,17 @@ func (s *ChatPin) Handle(ctx context.Context, eventBus EventBusInterface) error 
 	return eventBus.Publish(ctx, cp)
 }
 
-func (s *MessageCreate) Handle(ctx context.Context, eventBus EventBusInterface, dba *db.DB, commonProjection *CommonProjection) (int64, error) {
+func (s *MessageCreate) Handle(ctx context.Context, eventBus EventBusInterface, dba *db.DB, commonProjection *CommonProjection) (int64, bool, error) {
 	messageId, err := db.TransactWithResult(ctx, dba, func(tx *db.Tx) (int64, error) {
 		return commonProjection.GetNextMessageId(ctx, tx, s.ChatId)
 	})
+	if err != nil {
+		return 0, false, err
+	}
+
+	if messageId == ChatStillNotExists {
+		return 0, false, nil
+	}
 
 	mc := &MessageCreated{
 		AdditionalData: s.AdditionalData,
@@ -267,7 +274,7 @@ func (s *MessageCreate) Handle(ctx context.Context, eventBus EventBusInterface, 
 
 	err = eventBus.Publish(ctx, mc)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 
 	errOuter := commonProjection.IterateOverChatParticipantIds(ctx, dba, s.ChatId, nil, func(participantIdsPortion []int64) error {
@@ -289,10 +296,10 @@ func (s *MessageCreate) Handle(ctx context.Context, eventBus EventBusInterface, 
 	})
 
 	if errOuter != nil {
-		return 0, errOuter
+		return 0, false, errOuter
 	}
 
-	return messageId, err
+	return messageId, true, nil
 }
 
 func (s *MessageRead) Handle(ctx context.Context, eventBus EventBusInterface, commonProjection *CommonProjection) error {

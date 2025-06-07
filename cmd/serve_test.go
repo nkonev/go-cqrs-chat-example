@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"github.com/IBM/sarama"
 	"github.com/stretchr/testify/assert"
 	"go-cqrs-chat-example/client"
@@ -386,7 +387,7 @@ func TestAddParticipant(t *testing.T) {
 		assert.Equal(t, []int64{2, 1}, chat1OfUser2.ParticipantIds)
 
 		chat1NewName := "new chat 1 renamed"
-		err = restClient.EditChat(ctx, user1, chat1NewName)
+		err = restClient.EditChat(ctx, user1, chat1NewName, false)
 		assert.NoError(t, err, "error in changing chat")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
@@ -599,5 +600,55 @@ func TestEditMessage(t *testing.T) {
 		assert.Equal(t, message1TextNew, message1New2.Content)
 		assert.Equal(t, message2Id, message2New2.Id)
 		assert.Equal(t, message2TextNew, message2New2.Content)
+	})
+}
+
+func TestBlog(t *testing.T) {
+	startAppFull(t, func(
+		lgr *logger.LoggerWrapper,
+		cfg *config.AppConfig,
+		restClient *client.RestClient,
+		saramaClient sarama.Client,
+		m *cqrs.CommonProjection,
+		lc fx.Lifecycle,
+	) {
+		var user1 int64 = 1
+
+		chat1Name := "new chat 1"
+		ctx := context.Background()
+
+		chat1Id, err := restClient.CreateChat(ctx, user1, chat1Name)
+		assert.NoError(t, err, "error in creating chat")
+		assert.True(t, chat1Id > 0)
+
+		err = restClient.EditChat(ctx, user1, chat1Name, false)
+		assert.NoError(t, err)
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
+
+		message1Text := "new message 1"
+		message1Id, err := restClient.CreateMessage(ctx, user1, chat1Id, message1Text)
+		assert.NoError(t, err, "error in creating message")
+
+		message2Text := "new message 2"
+		message2Id, err := restClient.CreateMessage(ctx, user1, chat1Id, message2Text)
+		assert.NoError(t, err, "error in creating message")
+
+		err = restClient.MakeMessageBlogPost(ctx, chat1Id, message1Id)
+		assert.NoError(t, err, "error in making message blog post")
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
+
+		blogs, err := restClient.SearchBlogs(ctx)
+		assert.NoError(t, err, "error in searching blog posts")
+		assert.Equal(t, 1, len(blogs))
+		assert.Equal(t, chat1Id, blogs[0].Id)
+		assert.Equal(t, chat1Name, blogs[0].Title)
+
+		comments, err := restClient.SearchBlogComments(ctx, chat1Id)
+		assert.NoError(t, err, "error in searching blog comments")
+		assert.Equal(t, 1, len(comments))
+		assert.Equal(t, message2Id, comments[0].Id)
+		assert.Equal(t, message2Text, comments[0].Content)
+
+		fmt.Println(message2Id, comments)
 	})
 }

@@ -74,6 +74,8 @@ func (m *CommonProjection) InitializeChatIdSequenceIfNeed(ctx context.Context, t
 	return nil
 }
 
+const ChatStillNotExists = -1
+
 func (m *CommonProjection) GetNextMessageId(ctx context.Context, tx *db.Tx, chatId int64) (int64, error) {
 	var messageId int64
 	res := tx.QueryRowContext(ctx, "UPDATE chat_common SET last_generated_message_id = last_generated_message_id + 1 WHERE id = $1 RETURNING last_generated_message_id;", chatId)
@@ -81,6 +83,10 @@ func (m *CommonProjection) GetNextMessageId(ctx context.Context, tx *db.Tx, chat
 		return 0, res.Err()
 	}
 	if err := res.Scan(&messageId); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// there were no rows, but otherwise no error occurred
+			return ChatStillNotExists, nil
+		}
 		return 0, fmt.Errorf("error during generating message id: %w", err)
 	}
 	return messageId, nil
@@ -822,7 +828,6 @@ func (m *CommonProjection) OnMessageBlogPostMade(ctx context.Context, event *Mes
 			return errInner
 		}
 
-		// TODO test
 		errInner = m.refreshBlog(ctx, tx, event.ChatId, event.AdditionalData.CreatedAt)
 		if errInner != nil {
 			return errInner
