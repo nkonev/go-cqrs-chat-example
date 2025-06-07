@@ -3,6 +3,7 @@ package cqrs
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/jackc/pgtype"
 	"go-cqrs-chat-example/config"
@@ -263,7 +264,7 @@ func (m *CommonProjection) refreshBlog(ctx context.Context, tx *db.Tx, chatId in
 				    (select m.content from blog_message m),
 				    (select left(strip_tags(m.content), $2) from blog_message m),
 					$3
-				on conflict(id) do update set owner_id = excluded.owner_id, title = excluded.title, preview = excluded.preview, created_timestamp = excluded.created_timestamp
+				on conflict(id) do update set owner_id = excluded.owner_id, title = excluded.title, post = excluded.post, preview = excluded.preview, created_timestamp = excluded.created_timestamp
 			`, chatId, 512, createdTime)
 	if errInner != nil {
 		return errInner
@@ -709,6 +710,34 @@ func (m *CommonProjection) OnUnreadMessageReaded(ctx context.Context, event *Mes
 
 func (m *CommonProjection) OnMessageBlogPostMade(ctx context.Context, event *MessageBlogPostMade) error {
 	errOuter := db.Transact(ctx, m.db, func(tx *db.Tx) error {
+		rc := tx.QueryRowContext(ctx, "select exists (select * from chat_common where id = $1)", event.ChatId)
+		if rc.Err() != nil {
+			return rc.Err()
+		}
+		var chatExists bool
+		err := rc.Scan(&chatExists)
+		if err != nil {
+			return err
+		}
+		if !chatExists {
+			m.lgr.WithTrace(ctx).Info("Skipping MessageBlogPostMade because there is no chat", "chat_id", event.ChatId)
+			return nil
+		}
+
+		rm := tx.QueryRowContext(ctx, "select exists (select * from message where chat_id = $1)", event.ChatId)
+		if rm.Err() != nil {
+			return rm.Err()
+		}
+		var messageExists bool
+		err = rm.Scan(&messageExists)
+		if err != nil {
+			return err
+		}
+		if !messageExists {
+			m.lgr.WithTrace(ctx).Info("Skipping MessageBlogPostMade because there is no message", "chat_id", event.ChatId)
+			return nil
+		}
+
 		// unset previous
 		_, errInner := m.db.ExecContext(ctx, "update message set blog_post = false where chat_id = $1 and id = (select id from message where chat_id = $1 and blog_post = true)", event.ChatId)
 		if errInner != nil {
@@ -720,7 +749,6 @@ func (m *CommonProjection) OnMessageBlogPostMade(ctx context.Context, event *Mes
 			return errInner
 		}
 
-		// TODO rest handles (/post, /comments)
 		// TODO invoke m.refreshBlog() on message delete if message has blog_post = true
 		// TODO invoke m.refreshBlog() on message edit if message has blog_post = true
 		// TODO invoke m.refreshBlog() on chat edit if chat has blog = true
@@ -960,4 +988,139 @@ func (m *CommonProjection) IsBlog(ctx context.Context, co db.CommonOperations, c
 		return false, err
 	}
 	return blog, nil
+}
+
+// list view
+type BlogViewDto struct {
+	Id        int64     `json:"id"`
+	OwnerId   *int64    `json:"ownerId"`
+	Title     string    `json:"title"`
+	Preview   *string   `json:"preview"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+func (m *CommonProjection) GetBlogs(ctx context.Context) ([]BlogViewDto, error) {
+	ma := []BlogViewDto{}
+
+	rows, err := m.db.QueryContext(ctx, `
+		select 
+		    b.id,
+			b.owner_id,
+		    b.title,
+		    b.preview,
+		    b.created_timestamp
+		from blog b
+		order by b.created_timestamp desc 
+	`)
+	if err != nil {
+		return ma, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cd BlogViewDto
+		err = rows.Scan(&cd.Id, &cd.OwnerId, &cd.Title, &cd.Preview, &cd.CreatedAt)
+		if err != nil {
+			return ma, err
+		}
+		ma = append(ma, cd)
+	}
+	return ma, nil
+}
+
+type BlogDto struct {
+	Id        int64     `json:"id"`
+	OwnerId   *int64    `json:"ownerId"`
+	Title     string    `json:"title"`
+	Post      *string   `json:"post"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+func (m *CommonProjection) GetBlog(ctx context.Context, blogId int64) (*BlogDto, error) {
+	row := m.db.QueryRowContext(ctx, `
+		select 
+		    b.id,
+			b.owner_id,
+		    b.title,
+		    b.post,
+		    b.created_timestamp
+		from blog b
+		where b.id = $1
+		order by b.created_timestamp desc 
+	`, blogId)
+	if row.Err() != nil {
+		if errors.Is(row.Err(), sql.ErrNoRows) {
+			// there were no rows, but otherwise no error occurred
+			return nil, nil
+		}
+		return nil, row.Err()
+	}
+
+	var cd BlogDto
+	err := row.Scan(&cd.Id, &cd.OwnerId, &cd.Title, &cd.Post, &cd.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cd, nil
+}
+
+func (m *CommonProjection) getBlogPostMessageId(ctx context.Context, co db.CommonOperations, blogId int64) (int64, error) {
+	res := co.QueryRowContext(ctx, "select id from message where chat_id = $1 and blog_post = true order by id desc limit 1", blogId)
+	var messageId int64
+	if err := res.Scan(&messageId); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// there were no rows, but otherwise no error occurred
+			return 0, nil
+		}
+		return 0, err
+	}
+	return messageId, nil
+}
+
+type CommentViewDto struct {
+	Id      int64  `json:"id"`
+	OwnerId int64  `json:"ownerId"`
+	Content string `json:"content"`
+}
+
+func (m *CommonProjection) getComments(ctx context.Context, co db.CommonOperations, blogId, postMessageId int64) ([]CommentViewDto, error) {
+	ma := []CommentViewDto{}
+
+	rows, err := co.QueryContext(ctx, `
+		select id, owner_id, content
+		from message 
+		where chat_id = $1 and id > $2
+		order by id desc
+	`, blogId, postMessageId)
+	if err != nil {
+		return ma, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cd CommentViewDto
+		err = rows.Scan(&cd.Id, &cd.OwnerId, &cd.Content)
+		if err != nil {
+			return ma, err
+		}
+		ma = append(ma, cd)
+	}
+	return ma, nil
+}
+
+func (m *CommonProjection) GetComments(ctx context.Context, blogId int64) ([]CommentViewDto, error) {
+	res, errOuter := db.TransactWithResult(ctx, m.db, func(tx *db.Tx) ([]CommentViewDto, error) {
+		postMessageId, err := m.getBlogPostMessageId(ctx, tx, blogId)
+		if err != nil {
+			return []CommentViewDto{}, err
+		}
+		comments, err := m.getComments(ctx, tx, blogId, postMessageId)
+		if err != nil {
+			return []CommentViewDto{}, err
+		}
+		return comments, nil
+	})
+	if errOuter != nil {
+		return []CommentViewDto{}, errOuter
+	}
+	return res, nil
 }

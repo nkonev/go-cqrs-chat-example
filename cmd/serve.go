@@ -71,6 +71,7 @@ func RunServe() {
 			handlers.NewChatHandler,
 			handlers.NewParticipantHandler,
 			handlers.NewMessageHandler,
+			handlers.NewBlogHandler,
 			handlers.ConfigureHttpServer,
 			kafka.ConfigureSaramaClient,
 		),

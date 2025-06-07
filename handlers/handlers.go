@@ -19,6 +19,7 @@ func bindHttpHandlers(
 	chatHandler *ChatHandler,
 	participantHandler *ParticipantHandler,
 	messageHandler *MessageHandler,
+	blogHandler *BlogHandler,
 ) {
 	ginRouter.POST("/chat", chatHandler.CreateChat)
 	ginRouter.PUT("/chat", chatHandler.EditChat)
@@ -37,6 +38,10 @@ func bindHttpHandlers(
 	ginRouter.GET("/chat/:id/message/search", messageHandler.SearchMessages)
 	ginRouter.PUT("/chat/:id/message/:messageId/blog-post", messageHandler.MakeBlogPost)
 
+	ginRouter.GET("/blog/search", blogHandler.SearchBlogs)
+	ginRouter.GET("/blog/:id", blogHandler.GetBlog)
+	ginRouter.GET("/blog/:id/comment/search", blogHandler.SearchComments)
+
 	ginRouter.GET("/internal/health", func(g *gin.Context) {
 		g.Status(http.StatusOK)
 	})
@@ -54,6 +59,7 @@ func ConfigureHttpServer(
 	chatHandler *ChatHandler,
 	participantHandler *ParticipantHandler,
 	messageHandler *MessageHandler,
+	blogHandler *BlogHandler,
 ) *http.Server {
 	// https://gin-gonic.com/en/docs/examples/graceful-restart-or-stop/
 	gin.SetMode(gin.ReleaseMode)
@@ -63,7 +69,7 @@ func ConfigureHttpServer(
 	ginRouter.Use(WriteTraceToHeaderMiddleware())
 	ginRouter.Use(gin.Recovery())
 
-	bindHttpHandlers(ginRouter, chatHandler, participantHandler, messageHandler)
+	bindHttpHandlers(ginRouter, chatHandler, participantHandler, messageHandler, blogHandler)
 
 	httpServer := &http.Server{
 		Addr:           cfg.HttpServerConfig.Address,
