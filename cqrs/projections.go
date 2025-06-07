@@ -199,7 +199,7 @@ func (m *CommonProjection) OnChatEdited(ctx context.Context, event *ChatEdited) 
 			return nil
 		}
 
-		blog, errInner := m.IsBlog(ctx, tx, event.ChatId)
+		blog, errInner := m.isChatBlog(ctx, tx, event.ChatId)
 		if errInner != nil {
 			return errInner
 		}
@@ -230,6 +230,12 @@ func (m *CommonProjection) OnChatEdited(ctx context.Context, event *ChatEdited) 
 			}
 		} else if !blog && event.Blog {
 			// add blog
+			errInner = m.refreshBlog(ctx, tx, event.ChatId, event.AdditionalData.CreatedAt)
+			if errInner != nil {
+				return errInner
+			}
+		} else if blog && event.Blog {
+			// update blog
 			errInner = m.refreshBlog(ctx, tx, event.ChatId, event.AdditionalData.CreatedAt)
 			if errInner != nil {
 				return errInner
@@ -268,18 +274,41 @@ func (m *CommonProjection) refreshBlog(ctx context.Context, tx *db.Tx, chatId in
 }
 
 func (m *CommonProjection) OnChatRemoved(ctx context.Context, event *ChatDeleted) error {
-	_, err := m.db.ExecContext(ctx, `
-		delete from chat_common
-		where id = $1
-	`, event.ChatId)
-	if err != nil {
-		return err
-	}
-	m.lgr.WithTrace(ctx).Info(
-		"Common chat removed",
-		"chat_id", event.ChatId,
-	)
+	errOuter := db.Transact(ctx, m.db, func(tx *db.Tx) error {
 
+		blog, errInner := m.isChatBlog(ctx, tx, event.ChatId)
+		if errInner != nil {
+			return errInner
+		}
+
+		_, errInner = m.db.ExecContext(ctx, `
+			delete from chat_common
+			where id = $1
+		`, event.ChatId)
+		if errInner != nil {
+			return errInner
+		}
+
+		if blog {
+			_, errInner = m.db.ExecContext(ctx, `
+			delete from blog
+			where id = $1
+		`, event.ChatId)
+			if errInner != nil {
+				return errInner
+			}
+		}
+
+		m.lgr.WithTrace(ctx).Info(
+			"Common chat removed",
+			"chat_id", event.ChatId,
+		)
+		return nil
+	})
+
+	if errOuter != nil {
+		return errOuter
+	}
 	return nil
 }
 
@@ -770,8 +799,6 @@ func (m *CommonProjection) OnMessageBlogPostMade(ctx context.Context, event *Mes
 
 		// TODO invoke m.refreshBlog() on message delete if message has blog_post = true
 		// TODO invoke m.refreshBlog() on message edit if message has blog_post = true
-		// TODO invoke m.refreshBlog() on chat edit if chat has blog = true
-		// TODO remove blog on chat delete
 		// TODO test
 		errInner = m.refreshBlog(ctx, tx, event.ChatId, event.AdditionalData.CreatedAt)
 		if errInner != nil {
@@ -1000,11 +1027,21 @@ func (m *CommonProjection) IterateOverChatParticipantIds(ctx context.Context, co
 	return lastError
 }
 
-func (m *CommonProjection) IsBlog(ctx context.Context, co db.CommonOperations, chatId int64) (bool, error) {
-	r := co.QueryRowContext(ctx, "select blog from chat_common where id = $1", chatId)
+func (m *CommonProjection) isChatBlog(ctx context.Context, co db.CommonOperations, chatId int64) (bool, error) {
+	r := co.QueryRowContext(ctx, "select exists(select * from chat_common where id = $1 and blog = true)", chatId)
 	if r.Err() != nil {
 		return false, r.Err()
 	}
+	var blog bool
+	err := r.Scan(&blog)
+	if err != nil {
+		return false, err
+	}
+	return blog, nil
+}
+
+func (m *CommonProjection) isMessageBlogPost(ctx context.Context, co db.CommonOperations, chatId, messageId int64) (bool, error) {
+	r := co.QueryRowContext(ctx, "select exists(select * from message where chat_id = $1 and id = $2 and blog_post = true order by id desc limit 1)", chatId, messageId)
 	var blog bool
 	err := r.Scan(&blog)
 	if err != nil {
