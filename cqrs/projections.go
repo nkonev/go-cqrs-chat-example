@@ -503,22 +503,34 @@ func (m *CommonProjection) OnChatPinned(ctx context.Context, event *ChatPinned) 
 }
 
 func (m *CommonProjection) OnMessageCreated(ctx context.Context, event *MessageCreated) error {
-	_, err := m.db.ExecContext(ctx, `
+	errOuter := db.Transact(ctx, m.db, func(tx *db.Tx) error {
+		chatExists, err := m.checkChatExists(ctx, tx, event.ChatId)
+		if err != nil {
+			return err
+		}
+		if !chatExists {
+			m.lgr.WithTrace(ctx).Info("Skipping MessageCreated because there is no chat", "chat_id", event.ChatId)
+			return nil
+		}
+
+		_, err = tx.ExecContext(ctx, `
 		insert into message(id, chat_id, owner_id, content, created_timestamp, updated_timestamp) 
 			values ($1, $2, $3, $4, $5, $6)
 		on conflict(chat_id, id) do update set owner_id = excluded.owner_id, content = excluded.content, created_timestamp = excluded.created_timestamp, updated_timestamp = excluded.updated_timestamp
 	`, event.Id, event.ChatId, event.OwnerId, event.Content, event.AdditionalData.CreatedAt, nil)
-	if err != nil {
-		return err
-	}
-	m.lgr.WithTrace(ctx).Info(
-		"Handling message added",
-		"id", event.Id,
-		"user_id", event.OwnerId,
-		"chat_id", event.ChatId,
-	)
+		if err != nil {
+			return err
+		}
+		m.lgr.WithTrace(ctx).Info(
+			"Handling message added",
+			"id", event.Id,
+			"user_id", event.OwnerId,
+			"chat_id", event.ChatId,
+		)
+		return nil
+	})
 
-	return nil
+	return errOuter
 }
 
 func (m *CommonProjection) OnMessageEdited(ctx context.Context, event *MessageEdited) error {
