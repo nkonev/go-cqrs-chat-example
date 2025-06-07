@@ -179,8 +179,8 @@ func (m *CommonProjection) SetXactFastForwardSequenceLock(ctx context.Context, t
 
 func (m *CommonProjection) OnChatCreated(ctx context.Context, event *ChatCreated) error {
 	_, err := m.db.ExecContext(ctx, `
-		insert into chat_common(id, title, created_timestamp) values ($1, $2, $3)
-		on conflict(id) do update set title = excluded.title, created_timestamp = excluded.created_timestamp
+		insert into chat_common(id, title, create_date_time) values ($1, $2, $3)
+		on conflict(id) do update set title = excluded.title, create_date_time = excluded.create_date_time
 	`, event.ChatId, event.Title, event.AdditionalData.CreatedAt)
 	if err != nil {
 		return err
@@ -263,7 +263,7 @@ func (m *CommonProjection) refreshBlog(ctx context.Context, tx *db.Tx, chatId in
 				with blog_message as (
 					select m.* from message m where m.chat_id = $1 and m.blog_post = true
 				)	
-				insert into blog(id, owner_id, title, post, preview, created_timestamp)
+				insert into blog(id, owner_id, title, post, preview, create_date_time)
 				select 
 				    cast ($1 as bigint), 
 				    (select m.owner_id from blog_message m),
@@ -271,7 +271,7 @@ func (m *CommonProjection) refreshBlog(ctx context.Context, tx *db.Tx, chatId in
 				    (select m.content from blog_message m),
 				    (select left(strip_tags(m.content), $2) from blog_message m),
 					$3
-				on conflict(id) do update set owner_id = excluded.owner_id, title = excluded.title, post = excluded.post, preview = excluded.preview, created_timestamp = excluded.created_timestamp
+				on conflict(id) do update set owner_id = excluded.owner_id, title = excluded.title, post = excluded.post, preview = excluded.preview, create_date_time = excluded.create_date_time
 			`, chatId, 512, createdTime)
 	if errInner != nil {
 		return errInner
@@ -337,7 +337,7 @@ func (m *CommonProjection) OnParticipantAdded(ctx context.Context, event *Partic
 		with input_data as (
 			select unnest(cast ($1 as bigint[])) as user_id, cast ($2 as bigint) as chat_id
 		)
-		insert into chat_participant(user_id, chat_id, created_timestamp)
+		insert into chat_participant(user_id, chat_id, create_date_time)
 		select user_id, chat_id, $3 from input_data
 		on conflict(user_id, chat_id) do nothing
 	`, event.ParticipantIds, event.ChatId, event.AdditionalData.CreatedAt)
@@ -354,13 +354,13 @@ func (m *CommonProjection) OnParticipantAdded(ctx context.Context, event *Partic
 		_, err = tx.ExecContext(ctx, `
 		with 
 		this_chat_participants as (
-			select user_id, created_timestamp from chat_participant where chat_id = $2
+			select user_id, create_date_time from chat_participant where chat_id = $2
 		),
 		chat_participant_count as (
 			select count (*) as count from this_chat_participants
 		),
 		chat_participants_last_n as (
-			select user_id from this_chat_participants order by created_timestamp desc limit $4
+			select user_id from this_chat_participants order by create_date_time desc limit $4
 		),
 		user_input as (
 			select unnest(cast ($1 as bigint[])) as user_id
@@ -371,18 +371,18 @@ func (m *CommonProjection) OnParticipantAdded(ctx context.Context, event *Partic
 				c.title as title, 
 				false as pinned, 
 				u.user_id as user_id, 
-				cast ($3 as timestamp) as updated_timestamp,
+				cast ($3 as timestamp) as update_date_time,
 				(select count from chat_participant_count) as participants_count, 
 				(select array_agg(user_id) from chat_participants_last_n) as participant_ids
 			from user_input u
 			cross join (select cc.id, cc.title from chat_common cc where cc.id = $2) c 
 		)
-		insert into chat_user_view(id, title, pinned, user_id, updated_timestamp, participants_count, participant_ids) 
-			select chat_id, title, pinned, user_id, updated_timestamp, participants_count, participant_ids from input_data
+		insert into chat_user_view(id, title, pinned, user_id, update_date_time, participants_count, participant_ids) 
+			select chat_id, title, pinned, user_id, update_date_time, participants_count, participant_ids from input_data
 		on conflict(user_id, id) do update set
 			pinned = excluded.pinned, 
 			title = excluded.title, 
-			updated_timestamp = excluded.updated_timestamp, 
+			update_date_time = excluded.update_date_time, 
 			participants_count = excluded.participants_count, 
 			participant_ids = excluded.participant_ids
 		`, event.ParticipantIds, event.ChatId, event.AdditionalData.CreatedAt, m.chatUserViewConfig.MaxViewableParticipants)
@@ -514,9 +514,9 @@ func (m *CommonProjection) OnMessageCreated(ctx context.Context, event *MessageC
 		}
 
 		_, err = tx.ExecContext(ctx, `
-		insert into message(id, chat_id, owner_id, content, created_timestamp, updated_timestamp) 
+		insert into message(id, chat_id, owner_id, content, create_date_time, update_date_time) 
 			values ($1, $2, $3, $4, $5, $6)
-		on conflict(chat_id, id) do update set owner_id = excluded.owner_id, content = excluded.content, created_timestamp = excluded.created_timestamp, updated_timestamp = excluded.updated_timestamp
+		on conflict(chat_id, id) do update set owner_id = excluded.owner_id, content = excluded.content, create_date_time = excluded.create_date_time, update_date_time = excluded.update_date_time
 	`, event.Id, event.ChatId, event.OwnerId, event.Content, event.AdditionalData.CreatedAt, nil)
 		if err != nil {
 			return err
@@ -551,7 +551,7 @@ func (m *CommonProjection) OnMessageEdited(ctx context.Context, event *MessageEd
 
 		_, err = tx.ExecContext(ctx, `
 			update message
-			set	content = $3, updated_timestamp = $4
+			set	content = $3, update_date_time = $4
 			where chat_id = $2 and id = $1 
 		`, event.Id, event.ChatId, event.Content, event.AdditionalData.CreatedAt)
 		if err != nil {
@@ -667,13 +667,13 @@ func (m *CommonProjection) OnChatViewRefreshed(ctx context.Context, event *ChatV
 			_, err := tx.ExecContext(ctx, `
 					with
 					this_chat_participants as (
-						select user_id, created_timestamp from chat_participant where chat_id = $2
+						select user_id, create_date_time from chat_participant where chat_id = $2
 					),
 					chat_participant_count as (
 						select count (*) as count from this_chat_participants
 					),
 					chat_participants_last_n as (
-						select user_id from this_chat_participants order by created_timestamp desc limit $3
+						select user_id from this_chat_participants order by create_date_time desc limit $3
 					)
 					UPDATE chat_user_view 
 					SET 
@@ -687,7 +687,7 @@ func (m *CommonProjection) OnChatViewRefreshed(ctx context.Context, event *ChatV
 		}
 
 		_, err := tx.ExecContext(ctx, `
-				update chat_user_view set updated_timestamp = $3 where user_id = any($1) and id = $2
+				update chat_user_view set update_date_time = $3 where user_id = any($1) and id = $2
 			`, event.ParticipantIds, event.ChatId, event.AdditionalData.CreatedAt)
 		if err != nil {
 			return err
@@ -910,19 +910,19 @@ func (m *CommonProjection) GetLastMessageId(ctx context.Context, chatId int64) (
 }
 
 type MessageViewDto struct {
-	Id        int64      `json:"id"`
-	OwnerId   int64      `json:"ownerId"`
-	Content   string     `json:"content"`
-	BlogPost  bool       `json:"blogPost"`
-	CreatedAt time.Time  `json:"createdAt"`
-	UpdatedAt *time.Time `json:"updatedAt"`
+	Id             int64      `json:"id"`
+	OwnerId        int64      `json:"ownerId"`
+	Content        string     `json:"content"`
+	BlogPost       bool       `json:"blogPost"`
+	CreateDateTime time.Time  `json:"createDateTime"`
+	UpdateDateTime *time.Time `json:"editDateTime"` // for sake compatibility
 }
 
 func (m *CommonProjection) GetMessages(ctx context.Context, chatId int64) ([]MessageViewDto, error) {
 	ma := []MessageViewDto{}
 
 	rows, err := m.db.QueryContext(ctx, `
-		select id, owner_id, content, blog_post, created_timestamp, updated_timestamp
+		select id, owner_id, content, blog_post, create_date_time, update_date_time
 		from message 
 		where chat_id = $1 
 		order by id desc
@@ -933,7 +933,7 @@ func (m *CommonProjection) GetMessages(ctx context.Context, chatId int64) ([]Mes
 	defer rows.Close()
 	for rows.Next() {
 		var cd MessageViewDto
-		err = rows.Scan(&cd.Id, &cd.OwnerId, &cd.Content, &cd.BlogPost, &cd.CreatedAt, &cd.UpdatedAt)
+		err = rows.Scan(&cd.Id, &cd.OwnerId, &cd.Content, &cd.BlogPost, &cd.CreateDateTime, &cd.UpdateDateTime)
 		if err != nil {
 			return ma, err
 		}
@@ -943,26 +943,55 @@ func (m *CommonProjection) GetMessages(ctx context.Context, chatId int64) ([]Mes
 }
 
 type ChatViewDto struct {
-	Id                 int64     `json:"id"`
-	Title              string    `json:"title"`
-	Pinned             bool      `json:"pinned"`
-	UnreadMessages     int64     `json:"unreadMessages"`
-	LastMessageId      *int64    `json:"lastMessageId"`
-	LastMessageOwnerId *int64    `json:"lastMessageOwnerId"`
-	LastMessageContent *string   `json:"lastMessageContent"`
-	ParticipantsCount  int64     `json:"participantsCount"`
-	ParticipantIds     []int64   `json:"participantIds"` // ids of last N participants
-	Blog               bool      `json:"blog"`
-	UpdatedAt          time.Time `json:"updatedAt"`
+	Id                 int64      `json:"id"`
+	Title              string     `json:"title"`
+	Pinned             bool       `json:"pinned"`
+	UnreadMessages     int64      `json:"unreadMessages"`
+	LastMessageId      *int64     `json:"lastMessageId"`
+	LastMessageOwnerId *int64     `json:"lastMessageOwnerId"`
+	LastMessageContent *string    `json:"lastMessageContent"`
+	ParticipantsCount  int64      `json:"participantsCount"`
+	ParticipantIds     []int64    `json:"participantIds"` // ids of last N participants
+	Blog               bool       `json:"blog"`
+	UpdateDateTime     *time.Time `json:"lastUpdateDateTime"` // for sake compatibility
 }
 
-func (m *CommonProjection) GetChats(ctx context.Context, participantId int64) ([]ChatViewDto, error) {
+type ChatId struct {
+	Pinned             bool
+	LastUpdateDateTime time.Time
+	Id                 int64
+}
+
+func (m *CommonProjection) GetChats(ctx context.Context, participantId int64, size int32, startingFromItemId *ChatId, includeStartingFrom, reverse bool) ([]ChatViewDto, error) {
 	ma := []ChatViewDto{}
+
+	queryArgs := []any{participantId, size}
+
+	order := "desc"
+	offset := " offset 1" // to make behaviour the same as in users, messages (there is > or <)
+	if reverse {
+		order = "asc"
+	}
+	// see also getSafeDefaultUserId() in aaa
+	if includeStartingFrom || startingFromItemId == nil {
+		offset = ""
+	}
+
+	nonEquality := "<="
+	if reverse {
+		nonEquality = ">="
+	}
+
+	paginationKeyset := ""
+	if startingFromItemId != nil {
+		paginationKeyset = fmt.Sprintf(` and (ch.pinned, ch.updated_timestamp, ch.id) %s ($3, $4, $5)`, nonEquality)
+		queryArgs = append(queryArgs, startingFromItemId.Pinned, startingFromItemId.LastUpdateDateTime, startingFromItemId.Id)
+	}
 
 	// it is optimized (all order by in the same table)
 	// so querying a page (using keyset) from a large amount of chats is fast
 	// it's the root cause why we use cqrs
-	rows, err := m.db.QueryContext(ctx, `
+	rows, err := m.db.QueryContext(ctx, fmt.Sprintf(`
 		select 
 		    ch.id,
 		    ch.title,
@@ -974,13 +1003,16 @@ func (m *CommonProjection) GetChats(ctx context.Context, participantId int64) ([
 		    ch.participants_count,
 		    ch.participant_ids,
 		    b.id is not null as blog,
-		    ch.updated_timestamp
+		    ch.update_date_time
 		from chat_user_view ch
 		join unread_messages_user_view m on (ch.id = m.chat_id and m.user_id = $1)
 		left join blog b on ch.id = b.id
-		where ch.user_id = $1
-		order by (ch.pinned, ch.updated_timestamp, ch.id) desc 
-	`, participantId)
+		where ch.user_id = $1 %s
+		order by (ch.pinned, ch.update_date_time, ch.id) %s
+		limit $2 
+		%s
+		`, paginationKeyset, order, offset),
+		queryArgs...)
 	if err != nil {
 		return ma, err
 	}
@@ -988,7 +1020,7 @@ func (m *CommonProjection) GetChats(ctx context.Context, participantId int64) ([
 	for rows.Next() {
 		var cd ChatViewDto
 		var participantIds = pgtype.Int8Array{}
-		err = rows.Scan(&cd.Id, &cd.Title, &cd.Pinned, &cd.UnreadMessages, &cd.LastMessageId, &cd.LastMessageOwnerId, &cd.LastMessageContent, &cd.ParticipantsCount, &participantIds, &cd.Blog, &cd.UpdatedAt)
+		err = rows.Scan(&cd.Id, &cd.Title, &cd.Pinned, &cd.UnreadMessages, &cd.LastMessageId, &cd.LastMessageOwnerId, &cd.LastMessageContent, &cd.ParticipantsCount, &participantIds, &cd.Blog, &cd.UpdateDateTime)
 		if err != nil {
 			return ma, err
 		}
@@ -1092,11 +1124,11 @@ func (m *CommonProjection) isMessageBlogPost(ctx context.Context, co db.CommonOp
 
 // list view
 type BlogViewDto struct {
-	Id        int64     `json:"id"`
-	OwnerId   *int64    `json:"ownerId"`
-	Title     string    `json:"title"`
-	Preview   *string   `json:"preview"`
-	CreatedAt time.Time `json:"createdAt"`
+	Id             int64     `json:"id"`
+	OwnerId        *int64    `json:"ownerId"`
+	Title          string    `json:"title"`
+	Preview        *string   `json:"preview"`
+	CreateDateTime time.Time `json:"createDateTime"`
 }
 
 func (m *CommonProjection) GetBlogs(ctx context.Context) ([]BlogViewDto, error) {
@@ -1108,9 +1140,9 @@ func (m *CommonProjection) GetBlogs(ctx context.Context) ([]BlogViewDto, error) 
 			b.owner_id,
 		    b.title,
 		    b.preview,
-		    b.created_timestamp
+		    b.create_date_time
 		from blog b
-		order by b.created_timestamp desc 
+		order by b.create_date_time desc 
 	`)
 	if err != nil {
 		return ma, err
@@ -1118,7 +1150,7 @@ func (m *CommonProjection) GetBlogs(ctx context.Context) ([]BlogViewDto, error) 
 	defer rows.Close()
 	for rows.Next() {
 		var cd BlogViewDto
-		err = rows.Scan(&cd.Id, &cd.OwnerId, &cd.Title, &cd.Preview, &cd.CreatedAt)
+		err = rows.Scan(&cd.Id, &cd.OwnerId, &cd.Title, &cd.Preview, &cd.CreateDateTime)
 		if err != nil {
 			return ma, err
 		}
@@ -1128,11 +1160,11 @@ func (m *CommonProjection) GetBlogs(ctx context.Context) ([]BlogViewDto, error) 
 }
 
 type BlogDto struct {
-	Id        int64     `json:"id"`
-	OwnerId   *int64    `json:"ownerId"`
-	Title     string    `json:"title"`
-	Post      *string   `json:"post"`
-	CreatedAt time.Time `json:"createdAt"`
+	Id             int64     `json:"id"`
+	OwnerId        *int64    `json:"ownerId"`
+	Title          string    `json:"title"`
+	Post           *string   `json:"post"`
+	CreateDateTime time.Time `json:"createDateTime"`
 }
 
 func (m *CommonProjection) GetBlog(ctx context.Context, blogId int64) (*BlogDto, error) {
@@ -1142,10 +1174,10 @@ func (m *CommonProjection) GetBlog(ctx context.Context, blogId int64) (*BlogDto,
 			b.owner_id,
 		    b.title,
 		    b.post,
-		    b.created_timestamp
+		    b.create_date_time
 		from blog b
 		where b.id = $1
-		order by b.created_timestamp desc 
+		order by b.create_date_time desc 
 	`, blogId)
 	if row.Err() != nil {
 		if errors.Is(row.Err(), sql.ErrNoRows) {
@@ -1156,7 +1188,7 @@ func (m *CommonProjection) GetBlog(ctx context.Context, blogId int64) (*BlogDto,
 	}
 
 	var cd BlogDto
-	err := row.Scan(&cd.Id, &cd.OwnerId, &cd.Title, &cd.Post, &cd.CreatedAt)
+	err := row.Scan(&cd.Id, &cd.OwnerId, &cd.Title, &cd.Post, &cd.CreateDateTime)
 	if err != nil {
 		return nil, err
 	}
@@ -1178,18 +1210,18 @@ func (m *CommonProjection) getBlogPostMessageId(ctx context.Context, co db.Commo
 }
 
 type CommentViewDto struct {
-	Id        int64      `json:"id"`
-	OwnerId   int64      `json:"ownerId"`
-	Content   string     `json:"content"`
-	CreatedAt time.Time  `json:"createdAt"`
-	UpdatedAt *time.Time `json:"updatedAt"`
+	Id             int64      `json:"id"`
+	OwnerId        int64      `json:"ownerId"`
+	Content        string     `json:"content"`
+	CreateDateTime time.Time  `json:"createDateTime"`
+	UpdateDateTime *time.Time `json:"editDateTime"` // for sake compatibility
 }
 
 func (m *CommonProjection) getComments(ctx context.Context, co db.CommonOperations, blogId, postMessageId int64) ([]CommentViewDto, error) {
 	ma := []CommentViewDto{}
 
 	rows, err := co.QueryContext(ctx, `
-		select id, owner_id, content, created_timestamp, updated_timestamp
+		select id, owner_id, content, create_date_time, update_date_time
 		from message 
 		where chat_id = $1 and id > $2
 		order by id desc
@@ -1200,7 +1232,7 @@ func (m *CommonProjection) getComments(ctx context.Context, co db.CommonOperatio
 	defer rows.Close()
 	for rows.Next() {
 		var cd CommentViewDto
-		err = rows.Scan(&cd.Id, &cd.OwnerId, &cd.Content, &cd.CreatedAt, &cd.UpdatedAt)
+		err = rows.Scan(&cd.Id, &cd.OwnerId, &cd.Content, &cd.CreateDateTime, &cd.UpdateDateTime)
 		if err != nil {
 			return ma, err
 		}

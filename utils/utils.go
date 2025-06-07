@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"time"
 )
 
 const maxSize = 100
@@ -23,12 +24,36 @@ func ParseInt64(s string) (int64, error) {
 	}
 }
 
+func ParseInt64Nullable(s string) *int64 {
+	if i, err := strconv.ParseInt(s, 10, 64); err != nil {
+		return nil
+	} else {
+		return &i
+	}
+}
+
 func GetBoolean(s string) bool {
 	if parseBool, err := strconv.ParseBool(s); err != nil {
 		return false
 	} else {
 		return parseBool
 	}
+}
+
+func GetBooleanNullable(s string) *bool {
+	if parseBool, err := strconv.ParseBool(s); err != nil {
+		return nil
+	} else {
+		return &parseBool
+	}
+}
+
+func GetTimeNullable(s string) *time.Time {
+	time1, err := time.Parse(time.RFC3339Nano, s)
+	if err != nil {
+		return nil
+	}
+	return &time1
 }
 
 func GetSliceWithout(exception int64, inputData []int64) []int64 {

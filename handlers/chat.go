@@ -8,6 +8,7 @@ import (
 	"go-cqrs-chat-example/utils"
 	"net/http"
 	"slices"
+	"time"
 )
 
 type ChatHandler struct {
@@ -170,11 +171,32 @@ func (ch *ChatHandler) SearchChats(g *gin.Context) {
 		return
 	}
 
-	chats, err := ch.commonProjection.GetChats(g.Request.Context(), userId)
+	size := utils.FixSizeString(g.Query("size"))
+	reverse := utils.GetBoolean(g.Query("reverse"))
+
+	pinned := utils.GetBooleanNullable(g.Query("pinned"))
+	lastUpdateDateTime := utils.GetTimeNullable(g.Query("lastUpdateDateTime"))
+	id := utils.ParseInt64Nullable(g.Query("id"))
+	startingFromItemId := ch.convertChatId(pinned, lastUpdateDateTime, id)
+
+	includeStartingFrom := utils.GetBoolean(g.Query("includeStartingFrom"))
+
+	chats, err := ch.commonProjection.GetChats(g.Request.Context(), userId, size, startingFromItemId, includeStartingFrom, reverse)
 	if err != nil {
 		ch.lgr.WithTrace(g.Request.Context()).Error("Error getting chats", "err", err)
 		g.Status(http.StatusInternalServerError)
 		return
 	}
 	g.JSON(http.StatusOK, chats)
+}
+
+func (ch *ChatHandler) convertChatId(pinned *bool, lastUpdateDateTime *time.Time, id *int64) *cqrs.ChatId {
+	if pinned == nil || lastUpdateDateTime == nil || id == nil {
+		return nil
+	}
+	return &cqrs.ChatId{
+		Pinned:             *pinned,
+		LastUpdateDateTime: *lastUpdateDateTime,
+		Id:                 *id,
+	}
 }

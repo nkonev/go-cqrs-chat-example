@@ -26,6 +26,9 @@ curl -i -X PUT -H 'Content-Type: application/json' --url 'http://localhost:8080/
 
 # show chats
 curl -Ss -X GET -H 'X-UserId: 1' --url 'http://localhost:8080/chat/search' | jq
+# show chats with pagination
+curl -Ss -X GET --url 'http://localhost:8080/chat/search?size=40&pinned=false&lastUpdateDateTime=2024-10-31T22:37:34.643937Z&id=477&reverse=true&includeStartingFrom=true' -H 'Accept: application/json' -H 'X-UserId: 1' | jq
+curl -Ss -X GET --url 'http://localhost:8080/chat/search?size=40reverse=false&includeStartingFrom=true' -H 'Accept: application/json' -H 'X-UserId: 1' | jq
 
 # pin chat
 curl -i -X PUT -H 'X-UserId: 1' --url 'http://localhost:8080/chat/1/pin?pin=true'
