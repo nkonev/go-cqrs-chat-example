@@ -10,6 +10,7 @@ import (
 	"go-cqrs-chat-example/kafka"
 	"go-cqrs-chat-example/logger"
 	"go.uber.org/fx"
+	"go.uber.org/fx/fxevent"
 	"os"
 )
 
@@ -50,7 +51,9 @@ func RunExport() {
 	appFx := fx.New(
 		fx.Supply(cfg),
 		fx.Supply(lgr),
-		fx.Logger(lgr),
+		fx.WithLogger(func(lgr *logger.LoggerWrapper) fxevent.Logger {
+			return &fxevent.SlogLogger{Logger: lgr.Logger}
+		}),
 		fx.Provide(
 			kafka.ConfigureSaramaClient,
 		),

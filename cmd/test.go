@@ -13,6 +13,7 @@ import (
 	"go-cqrs-chat-example/logger"
 	"go-cqrs-chat-example/otel"
 	"go.uber.org/fx"
+	"go.uber.org/fx/fxevent"
 	"go.uber.org/fx/fxtest"
 	"os"
 	"testing"
@@ -38,6 +39,9 @@ func resetInfra(lgr *logger.LoggerWrapper, cfg *config.AppConfig) {
 	appFx := fx.New(
 		fx.Supply(cfg),
 		fx.Supply(lgr),
+		fx.WithLogger(func(lgr *logger.LoggerWrapper) fxevent.Logger {
+			return &fxevent.SlogLogger{Logger: lgr.Logger}
+		}),
 		fx.Provide(
 			otel.ConfigureTracePropagator,
 			otel.ConfigureTraceProvider,
@@ -62,7 +66,9 @@ func runTestFunc(lgr *logger.LoggerWrapper, cfg *config.AppConfig, t *testing.T,
 		t,
 		fx.Supply(cfg),
 		fx.Supply(lgr),
-		fx.Logger(lgr),
+		fx.WithLogger(func(lgr *logger.LoggerWrapper) fxevent.Logger {
+			return &fxevent.SlogLogger{Logger: lgr.Logger}
+		}),
 		fx.Populate(&s),
 		fx.Provide(
 			otel.ConfigureTracePropagator,

@@ -12,6 +12,7 @@ import (
 	"go-cqrs-chat-example/logger"
 	"go-cqrs-chat-example/otel"
 	"go.uber.org/fx"
+	"go.uber.org/fx/fxevent"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -54,7 +55,9 @@ func RunImport() {
 	appFx := fx.New(
 		fx.Supply(cfg),
 		fx.Supply(lgr),
-		fx.Logger(lgr),
+		fx.WithLogger(func(lgr *logger.LoggerWrapper) fxevent.Logger {
+			return &fxevent.SlogLogger{Logger: lgr.Logger}
+		}),
 		fx.Provide(
 			otel.ConfigureTracePropagator,
 			otel.ConfigureTraceProvider,

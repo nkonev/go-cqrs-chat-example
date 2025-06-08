@@ -13,12 +13,13 @@ import (
 	"go-cqrs-chat-example/logger"
 	"go-cqrs-chat-example/otel"
 	"go.uber.org/fx"
+	"go.uber.org/fx/fxevent"
 	"os"
 	"testing"
 )
 
 func TestImport(t *testing.T) {
-	cfg, err := config.CreateTypedConfig()
+	cfg, err := config.CreateTestTypedConfig()
 	if err != nil {
 		panic(err)
 	}
@@ -78,6 +79,9 @@ func TestImport(t *testing.T) {
 	lgr.Info("Start export command")
 	appExportFx := fx.New(
 		fx.Supply(lgr),
+		fx.WithLogger(func(lgr *logger.LoggerWrapper) fxevent.Logger {
+			return &fxevent.SlogLogger{Logger: lgr.Logger}
+		}),
 		fx.Provide(
 			config.CreateTestTypedConfig,
 			kafka.ConfigureSaramaClient,
@@ -95,6 +99,9 @@ func TestImport(t *testing.T) {
 	lgr.Info("Start import command")
 	appImportFx := fx.New(
 		fx.Supply(lgr),
+		fx.WithLogger(func(lgr *logger.LoggerWrapper) fxevent.Logger {
+			return &fxevent.SlogLogger{Logger: lgr.Logger}
+		}),
 		fx.Provide(
 			config.CreateTestTypedConfig,
 			otel.ConfigureTracePropagator,
