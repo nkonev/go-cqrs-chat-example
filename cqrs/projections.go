@@ -984,7 +984,7 @@ func (m *CommonProjection) GetChats(ctx context.Context, participantId int64, si
 
 	paginationKeyset := ""
 	if startingFromItemId != nil {
-		paginationKeyset = fmt.Sprintf(` and (ch.pinned, ch.updated_timestamp, ch.id) %s ($3, $4, $5)`, nonEquality)
+		paginationKeyset = fmt.Sprintf(` and (ch.pinned, ch.update_date_time, ch.id) %s ($3, $4, $5)`, nonEquality)
 		queryArgs = append(queryArgs, startingFromItemId.Pinned, startingFromItemId.LastUpdateDateTime, startingFromItemId.Id)
 	}
 

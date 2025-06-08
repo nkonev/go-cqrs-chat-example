@@ -163,6 +163,15 @@ func (ch *ChatHandler) PinChat(g *gin.Context) {
 	g.Status(http.StatusOK)
 }
 
+const SizeParam = "size"
+const ReverseParam = "reverse"
+
+const PinnedParam = "pinned"
+const LastUpdateDateTimeParam = "lastUpdateDateTime"
+const ChatIdParam = "id"
+
+const IncludeStartingFromParam = "includeStartingFrom"
+
 func (ch *ChatHandler) SearchChats(g *gin.Context) {
 	userId, err := getUserId(g)
 	if err != nil {
@@ -171,15 +180,15 @@ func (ch *ChatHandler) SearchChats(g *gin.Context) {
 		return
 	}
 
-	size := utils.FixSizeString(g.Query("size"))
-	reverse := utils.GetBoolean(g.Query("reverse"))
+	size := utils.FixSizeString(g.Query(SizeParam))
+	reverse := utils.GetBoolean(g.Query(ReverseParam))
 
-	pinned := utils.GetBooleanNullable(g.Query("pinned"))
-	lastUpdateDateTime := utils.GetTimeNullable(g.Query("lastUpdateDateTime"))
-	id := utils.ParseInt64Nullable(g.Query("id"))
+	pinned := utils.GetBooleanNullable(g.Query(PinnedParam))
+	lastUpdateDateTime := utils.GetTimeNullable(g.Query(LastUpdateDateTimeParam))
+	id := utils.ParseInt64Nullable(g.Query(ChatIdParam))
 	startingFromItemId := ch.convertChatId(pinned, lastUpdateDateTime, id)
 
-	includeStartingFrom := utils.GetBoolean(g.Query("includeStartingFrom"))
+	includeStartingFrom := utils.GetBoolean(g.Query(IncludeStartingFromParam))
 
 	chats, err := ch.commonProjection.GetChats(g.Request.Context(), userId, size, startingFromItemId, includeStartingFrom, reverse)
 	if err != nil {

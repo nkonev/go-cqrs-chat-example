@@ -132,3 +132,36 @@ func waitForHealthCheck(lgr *logger.LoggerWrapper, restClient *client.RestClient
 	}
 	lgr.Info("chat have started")
 }
+
+func isChatExists(ctx context.Context, co db.CommonOperations, chatTitle string) (bool, error) {
+	r := co.QueryRowContext(ctx, "select exists(select * from chat_common where title = $1 limit 1)", chatTitle)
+	var blog bool
+	err := r.Scan(&blog)
+	if err != nil {
+		return false, err
+	}
+	return blog, nil
+}
+
+func waitForChatExists(lgr *logger.LoggerWrapper, dba *db.DB, chatTitle string) {
+	ctx := context.Background()
+
+	i := 0
+	const maxAttempts = 120
+	success := false
+	for ; i <= maxAttempts; i++ {
+		exists, err := isChatExists(ctx, dba, chatTitle)
+		if err != nil || !exists {
+			lgr.Info("Awaiting while chat appear")
+			time.Sleep(time.Second * 1)
+			continue
+		} else {
+			success = true
+			break
+		}
+	}
+	if !success {
+		panic("Cannot await for chat will appear")
+	}
+	lgr.Info("chat appeared")
+}

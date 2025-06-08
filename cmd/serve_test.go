@@ -2,16 +2,20 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"github.com/IBM/sarama"
 	"github.com/stretchr/testify/assert"
 	"go-cqrs-chat-example/client"
 	"go-cqrs-chat-example/config"
 	"go-cqrs-chat-example/cqrs"
+	"go-cqrs-chat-example/db"
+	"go-cqrs-chat-example/handlers"
 	"go-cqrs-chat-example/kafka"
 	"go-cqrs-chat-example/logger"
+	"go-cqrs-chat-example/utils"
 	"go.uber.org/fx"
+	"net/url"
 	"testing"
+	"time"
 )
 
 func TestUnreads(t *testing.T) {
@@ -45,18 +49,18 @@ func TestUnreads(t *testing.T) {
 		assert.NoError(t, err, "error in creating message")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		user1Chats, err := restClient.GetChatsByUserId(ctx, user1)
+		user1Chats, err := restClient.GetChatsByUserId(ctx, user1, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user1Chats))
 		chat1OfUser1 := user1Chats[0]
 		assert.Equal(t, chat1Name, chat1OfUser1.Title)
 		assert.Equal(t, int64(0), chat1OfUser1.UnreadMessages)
 
-		user2Chats, err := restClient.GetChatsByUserId(ctx, user2)
+		user2Chats, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 0, len(user2Chats))
 
-		user3Chats, err := restClient.GetChatsByUserId(ctx, user3)
+		user3Chats, err := restClient.GetChatsByUserId(ctx, user3, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 0, len(user3Chats))
 
@@ -75,14 +79,14 @@ func TestUnreads(t *testing.T) {
 		assert.NoError(t, err, "error in chat participants")
 		assert.Equal(t, []int64{user1, user2, user3}, chat1Participants)
 
-		user2ChatsNew, err := restClient.GetChatsByUserId(ctx, user2)
+		user2ChatsNew, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user2ChatsNew))
 		chat1OfUser2 := user2ChatsNew[0]
 		assert.Equal(t, chat1Name, chat1OfUser2.Title)
 		assert.Equal(t, int64(1), chat1OfUser2.UnreadMessages)
 
-		user3ChatsNew, err := restClient.GetChatsByUserId(ctx, user3)
+		user3ChatsNew, err := restClient.GetChatsByUserId(ctx, user3, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user3ChatsNew))
 		chat1OfUser3 := user3ChatsNew[0]
@@ -93,13 +97,13 @@ func TestUnreads(t *testing.T) {
 		assert.NoError(t, err, "error in reading message")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		user2ChatsNew2, err := restClient.GetChatsByUserId(ctx, user2)
+		user2ChatsNew2, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user2ChatsNew2))
 		chat1OfUser22 := user2ChatsNew2[0]
 		assert.Equal(t, int64(0), chat1OfUser22.UnreadMessages)
 
-		user3ChatsNew2, err := restClient.GetChatsByUserId(ctx, user3)
+		user3ChatsNew2, err := restClient.GetChatsByUserId(ctx, user3, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user3ChatsNew2))
 		chat1OfUser32 := user3ChatsNew2[0]
@@ -115,13 +119,13 @@ func TestUnreads(t *testing.T) {
 		assert.True(t, messageId3 > 0)
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		user2ChatsNew3, err := restClient.GetChatsByUserId(ctx, user2)
+		user2ChatsNew3, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user2ChatsNew3))
 		chat1OfUser23 := user2ChatsNew3[0]
 		assert.Equal(t, int64(2), chat1OfUser23.UnreadMessages)
 
-		user3ChatsNew3, err := restClient.GetChatsByUserId(ctx, user3)
+		user3ChatsNew3, err := restClient.GetChatsByUserId(ctx, user3, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user3ChatsNew3))
 		chat1OfUser33 := user3ChatsNew3[0]
@@ -131,13 +135,13 @@ func TestUnreads(t *testing.T) {
 		assert.NoError(t, err, "error in delete message")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		user2ChatsNew4, err := restClient.GetChatsByUserId(ctx, user2)
+		user2ChatsNew4, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user2ChatsNew4))
 		chat1OfUser24 := user2ChatsNew4[0]
 		assert.Equal(t, int64(1), chat1OfUser24.UnreadMessages)
 
-		user3ChatsNew4, err := restClient.GetChatsByUserId(ctx, user3)
+		user3ChatsNew4, err := restClient.GetChatsByUserId(ctx, user3, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user3ChatsNew4))
 		chat1OfUser34 := user3ChatsNew4[0]
@@ -175,7 +179,7 @@ func TestPinChat(t *testing.T) {
 		assert.NoError(t, err, "error in creating message")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		user1Chats, err := restClient.GetChatsByUserId(ctx, user1)
+		user1Chats, err := restClient.GetChatsByUserId(ctx, user1, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user1Chats))
 		chat1OfUser1 := user1Chats[0]
@@ -183,7 +187,7 @@ func TestPinChat(t *testing.T) {
 		assert.Equal(t, chat1Name, chat1OfUser1.Title)
 		assert.Equal(t, int64(0), chat1OfUser1.UnreadMessages)
 
-		user2Chats, err := restClient.GetChatsByUserId(ctx, user2)
+		user2Chats, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 0, len(user2Chats))
 
@@ -202,7 +206,7 @@ func TestPinChat(t *testing.T) {
 		assert.NoError(t, err, "error in chat participants")
 		assert.Equal(t, []int64{user1, user2}, chat1Participants)
 
-		user2ChatsNew, err := restClient.GetChatsByUserId(ctx, user2)
+		user2ChatsNew, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user2ChatsNew))
 		chat1OfUser2 := user2ChatsNew[0]
@@ -214,7 +218,7 @@ func TestPinChat(t *testing.T) {
 		assert.NoError(t, err, "error in pinning chats")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		user1ChatsNew2, err := restClient.GetChatsByUserId(ctx, user1)
+		user1ChatsNew2, err := restClient.GetChatsByUserId(ctx, user1, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user1ChatsNew2))
 		chat1OfUser1New2 := user1ChatsNew2[0]
@@ -224,7 +228,7 @@ func TestPinChat(t *testing.T) {
 		assert.Equal(t, message1.Id, *chat1OfUser1New2.LastMessageId)
 		assert.Equal(t, message1.Content, *chat1OfUser1New2.LastMessageContent)
 
-		user2ChatsNew2, err := restClient.GetChatsByUserId(ctx, user2)
+		user2ChatsNew2, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user2ChatsNew2))
 		chat1OfUser2New2 := user2ChatsNew2[0]
@@ -267,7 +271,7 @@ func TestDeleteChat(t *testing.T) {
 		assert.NoError(t, err, "error in creating message")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		user1Chats, err := restClient.GetChatsByUserId(ctx, user1)
+		user1Chats, err := restClient.GetChatsByUserId(ctx, user1, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user1Chats))
 		chat1OfUser1 := user1Chats[0]
@@ -275,7 +279,7 @@ func TestDeleteChat(t *testing.T) {
 		assert.Equal(t, chat1Name, chat1OfUser1.Title)
 		assert.Equal(t, int64(0), chat1OfUser1.UnreadMessages)
 
-		user2Chats, err := restClient.GetChatsByUserId(ctx, user2)
+		user2Chats, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 0, len(user2Chats))
 
@@ -294,7 +298,7 @@ func TestDeleteChat(t *testing.T) {
 		assert.NoError(t, err, "error in chat participants")
 		assert.Equal(t, []int64{user1, user2}, chat1Participants)
 
-		user2ChatsNew, err := restClient.GetChatsByUserId(ctx, user2)
+		user2ChatsNew, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user2ChatsNew))
 		chat1OfUser2 := user2ChatsNew[0]
@@ -306,11 +310,11 @@ func TestDeleteChat(t *testing.T) {
 		assert.NoError(t, err, "error in removing chats")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		user1ChatsNew2, err := restClient.GetChatsByUserId(ctx, user1)
+		user1ChatsNew2, err := restClient.GetChatsByUserId(ctx, user1, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 0, len(user1ChatsNew2))
 
-		user2ChatsNew2, err := restClient.GetChatsByUserId(ctx, user2)
+		user2ChatsNew2, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 0, len(user2ChatsNew2))
 	})
@@ -347,7 +351,7 @@ func TestAddParticipant(t *testing.T) {
 		assert.NoError(t, err, "error in creating message")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		user1Chats, err := restClient.GetChatsByUserId(ctx, user1)
+		user1Chats, err := restClient.GetChatsByUserId(ctx, user1, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user1Chats))
 		chat1OfUser1 := user1Chats[0]
@@ -356,7 +360,7 @@ func TestAddParticipant(t *testing.T) {
 		assert.Equal(t, int64(1), chat1OfUser1.ParticipantsCount)
 		assert.Equal(t, []int64{1}, chat1OfUser1.ParticipantIds)
 
-		user2Chats, err := restClient.GetChatsByUserId(ctx, user2)
+		user2Chats, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 0, len(user2Chats))
 
@@ -375,7 +379,7 @@ func TestAddParticipant(t *testing.T) {
 		assert.NoError(t, err, "error in chat participants")
 		assert.Equal(t, []int64{user1, user2}, chat1Participants)
 
-		user2ChatsNew, err := restClient.GetChatsByUserId(ctx, user2)
+		user2ChatsNew, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user2ChatsNew))
 		chat1OfUser2 := user2ChatsNew[0]
@@ -391,7 +395,7 @@ func TestAddParticipant(t *testing.T) {
 		assert.NoError(t, err, "error in changing chat")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		user1ChatsNew2, err := restClient.GetChatsByUserId(ctx, user1)
+		user1ChatsNew2, err := restClient.GetChatsByUserId(ctx, user1, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user1ChatsNew2))
 		chat1OfUser1New2 := user1ChatsNew2[0]
@@ -402,7 +406,7 @@ func TestAddParticipant(t *testing.T) {
 		assert.Equal(t, int64(2), chat1OfUser1New2.ParticipantsCount)
 		assert.Equal(t, []int64{2, 1}, chat1OfUser1New2.ParticipantIds)
 
-		user2ChatsNew2, err := restClient.GetChatsByUserId(ctx, user2)
+		user2ChatsNew2, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user2ChatsNew2))
 		chat1OfUser2New2 := user2ChatsNew2[0]
@@ -445,7 +449,7 @@ func TestDeleteParticipant(t *testing.T) {
 		assert.NoError(t, err, "error in creating message")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		user1Chats, err := restClient.GetChatsByUserId(ctx, user1)
+		user1Chats, err := restClient.GetChatsByUserId(ctx, user1, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user1Chats))
 		chat1OfUser1 := user1Chats[0]
@@ -454,7 +458,7 @@ func TestDeleteParticipant(t *testing.T) {
 		assert.Equal(t, int64(1), chat1OfUser1.ParticipantsCount)
 		assert.Equal(t, []int64{1}, chat1OfUser1.ParticipantIds)
 
-		user2Chats, err := restClient.GetChatsByUserId(ctx, user2)
+		user2Chats, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 0, len(user2Chats))
 
@@ -473,7 +477,7 @@ func TestDeleteParticipant(t *testing.T) {
 		assert.NoError(t, err, "error in chat participants")
 		assert.Equal(t, []int64{user1, user2}, chat1Participants)
 
-		user2ChatsNew, err := restClient.GetChatsByUserId(ctx, user2)
+		user2ChatsNew, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user2ChatsNew))
 		chat1OfUser2 := user2ChatsNew[0]
@@ -488,7 +492,7 @@ func TestDeleteParticipant(t *testing.T) {
 		assert.NoError(t, err, "error in removing chat participants")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		user2ChatsNew2, err := restClient.GetChatsByUserId(ctx, user2)
+		user2ChatsNew2, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 0, len(user2ChatsNew2))
 
@@ -496,7 +500,7 @@ func TestDeleteParticipant(t *testing.T) {
 		assert.NoError(t, err, "error in chat participants")
 		assert.Equal(t, []int64{user1}, chat1Participants2)
 
-		user1ChatsNew2, err := restClient.GetChatsByUserId(ctx, user1)
+		user1ChatsNew2, err := restClient.GetChatsByUserId(ctx, user1, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user1ChatsNew2))
 		chat1OfUser1New2 := user1ChatsNew2[0]
@@ -537,7 +541,7 @@ func TestEditMessage(t *testing.T) {
 		assert.NoError(t, err, "error in creating message")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		user1Chats, err := restClient.GetChatsByUserId(ctx, user1)
+		user1Chats, err := restClient.GetChatsByUserId(ctx, user1, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user1Chats))
 		chat1OfUser1 := user1Chats[0]
@@ -560,7 +564,7 @@ func TestEditMessage(t *testing.T) {
 		assert.NoError(t, err, "error in creating message")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		user1ChatsNew, err := restClient.GetChatsByUserId(ctx, user1)
+		user1ChatsNew, err := restClient.GetChatsByUserId(ctx, user1, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user1ChatsNew))
 		chat1OfUser1New := user1ChatsNew[0]
@@ -583,7 +587,7 @@ func TestEditMessage(t *testing.T) {
 		assert.NoError(t, err, "error in creating message")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		user1ChatsNew2, err := restClient.GetChatsByUserId(ctx, user1)
+		user1ChatsNew2, err := restClient.GetChatsByUserId(ctx, user1, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user1ChatsNew2))
 		chat1OfUser1New2 := user1ChatsNew2[0]
@@ -648,7 +652,63 @@ func TestBlog(t *testing.T) {
 		assert.Equal(t, 1, len(comments))
 		assert.Equal(t, message2Id, comments[0].Id)
 		assert.Equal(t, message2Text, comments[0].Content)
+	})
+}
 
-		fmt.Println(message2Id, comments)
+func TestChatPaginate(t *testing.T) {
+	startAppFull(t, func(
+		lgr *logger.LoggerWrapper,
+		cfg *config.AppConfig,
+		restClient *client.RestClient,
+		saramaClient sarama.Client,
+		dba *db.DB,
+		lc fx.Lifecycle,
+	) {
+		const user1 int64 = 1
+		const num = 1000
+
+		chatPrefix := "generated_chat"
+		ctx := context.Background()
+
+		for i := 1; i <= num; i++ {
+			chat1Id, err := restClient.CreateChat(ctx, user1, chatPrefix+utils.ToString(i))
+			assert.NoError(t, err, "error in creating chat")
+			assert.True(t, chat1Id > 0)
+		}
+		lastChatTitle := chatPrefix + utils.ToString(num-1)
+		waitForChatExists(lgr, dba, lastChatTitle)
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
+
+		// get initial page
+		query1 := url.Values{
+			handlers.SizeParam: []string{utils.ToString(40)},
+		}
+		resp1, err := restClient.GetChatsByUserId(ctx, user1, &query1)
+		assert.NoError(t, err)
+		assert.Equal(t, 40, len(resp1))
+		assert.Equal(t, "generated_chat1000", resp1[0].Title)
+		assert.Equal(t, "generated_chat999", resp1[1].Title)
+		assert.Equal(t, "generated_chat998", resp1[2].Title)
+		assert.Equal(t, "generated_chat961", resp1[39].Title)
+
+		lastPinned := resp1[len(resp1)-1].Pinned
+		lastId := resp1[len(resp1)-1].Id
+		lastLastUpdateDateTime := resp1[len(resp1)-1].UpdateDateTime
+
+		// get second page
+		query2 := url.Values{
+			handlers.SizeParam: []string{utils.ToString(40)},
+
+			handlers.PinnedParam:             []string{utils.ToString(lastPinned)},
+			handlers.LastUpdateDateTimeParam: []string{lastLastUpdateDateTime.Format(time.RFC3339Nano)},
+			handlers.ChatIdParam:             []string{utils.ToString(lastId)},
+		}
+		resp2, err := restClient.GetChatsByUserId(ctx, user1, &query2)
+		assert.NoError(t, err)
+		assert.Equal(t, 40, len(resp2))
+		assert.Equal(t, "generated_chat960", resp2[0].Title)
+		assert.Equal(t, "generated_chat959", resp2[1].Title)
+		assert.Equal(t, "generated_chat958", resp2[2].Title)
+		assert.Equal(t, "generated_chat921", resp2[39].Title)
 	})
 }

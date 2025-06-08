@@ -56,7 +56,7 @@ func TestImport(t *testing.T) {
 
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		user1Chats, err := restClient.GetChatsByUserId(ctx, user1)
+		user1Chats, err := restClient.GetChatsByUserId(ctx, user1, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user1Chats))
 		chat1OfUser1 := user1Chats[0]
@@ -127,7 +127,7 @@ func TestImport(t *testing.T) {
 
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		user1Chats, err := restClient.GetChatsByUserId(ctx, user1)
+		user1Chats, err := restClient.GetChatsByUserId(ctx, user1, nil)
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user1Chats))
 		chat1OfUser1 := user1Chats[0]
