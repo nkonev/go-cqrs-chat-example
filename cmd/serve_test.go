@@ -675,7 +675,7 @@ func TestChatPaginate(t *testing.T) {
 			assert.NoError(t, err, "error in creating chat")
 			assert.True(t, chat1Id > 0)
 		}
-		lastChatTitle := chatPrefix + utils.ToString(num-1)
+		lastChatTitle := chatPrefix + utils.ToString(num)
 		waitForChatExists(lgr, dba, lastChatTitle)
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
