@@ -27,11 +27,11 @@ func TestUnreads(t *testing.T) {
 		m *cqrs.CommonProjection,
 		lc fx.Lifecycle,
 	) {
-		var user1 int64 = 1
-		var user2 int64 = 2
-		var user3 int64 = 3
+		const user1 int64 = 1
+		const user2 int64 = 2
+		const user3 int64 = 3
+		const chat1Name = "new chat 1"
 
-		chat1Name := "new chat 1"
 		ctx := context.Background()
 
 		chat1Id, err := restClient.CreateChat(ctx, user1, chat1Name)
@@ -43,7 +43,7 @@ func TestUnreads(t *testing.T) {
 		assert.NoError(t, err, "error in getting chat")
 		assert.Equal(t, chat1Name, title)
 
-		message1Text := "new message 1"
+		const message1Text = "new message 1"
 
 		message1Id, err := restClient.CreateMessage(ctx, user1, chat1Id, message1Text)
 		assert.NoError(t, err, "error in creating message")
@@ -109,11 +109,11 @@ func TestUnreads(t *testing.T) {
 		chat1OfUser32 := user3ChatsNew2[0]
 		assert.Equal(t, int64(1), chat1OfUser32.UnreadMessages)
 
-		message2Text := "new message 2"
+		const message2Text = "new message 2"
 		_, err = restClient.CreateMessage(ctx, user1, chat1Id, message2Text)
 		assert.NoError(t, err, "error in creating message")
 
-		message3Text := "new message 3"
+		const message3Text = "new message 3"
 		messageId3, err := restClient.CreateMessage(ctx, user1, chat1Id, message3Text)
 		assert.NoError(t, err, "error in creating message")
 		assert.True(t, messageId3 > 0)
@@ -158,10 +158,10 @@ func TestPinChat(t *testing.T) {
 		m *cqrs.CommonProjection,
 		lc fx.Lifecycle,
 	) {
-		var user1 int64 = 1
-		var user2 int64 = 2
+		const user1 int64 = 1
+		const user2 int64 = 2
+		const chat1Name = "new chat 1"
 
-		chat1Name := "new chat 1"
 		ctx := context.Background()
 
 		chat1Id, err := restClient.CreateChat(ctx, user1, chat1Name)
@@ -173,7 +173,7 @@ func TestPinChat(t *testing.T) {
 		assert.NoError(t, err, "error in getting chat")
 		assert.Equal(t, chat1Name, title)
 
-		message1Text := "new message 1"
+		const message1Text = "new message 1"
 
 		message1Id, err := restClient.CreateMessage(ctx, user1, chat1Id, message1Text)
 		assert.NoError(t, err, "error in creating message")
@@ -250,10 +250,10 @@ func TestDeleteChat(t *testing.T) {
 		m *cqrs.CommonProjection,
 		lc fx.Lifecycle,
 	) {
-		var user1 int64 = 1
-		var user2 int64 = 2
+		const user1 int64 = 1
+		const user2 int64 = 2
+		const chat1Name = "new chat 1"
 
-		chat1Name := "new chat 1"
 		ctx := context.Background()
 
 		chat1Id, err := restClient.CreateChat(ctx, user1, chat1Name)
@@ -265,7 +265,7 @@ func TestDeleteChat(t *testing.T) {
 		assert.NoError(t, err, "error in getting chat")
 		assert.Equal(t, chat1Name, title)
 
-		message1Text := "new message 1"
+		const message1Text = "new message 1"
 
 		message1Id, err := restClient.CreateMessage(ctx, user1, chat1Id, message1Text)
 		assert.NoError(t, err, "error in creating message")
@@ -330,10 +330,10 @@ func TestAddParticipant(t *testing.T) {
 		m *cqrs.CommonProjection,
 		lc fx.Lifecycle,
 	) {
-		var user1 int64 = 1
-		var user2 int64 = 2
+		const user1 int64 = 1
+		const user2 int64 = 2
+		const chat1Name = "new chat 1"
 
-		chat1Name := "new chat 1"
 		ctx := context.Background()
 
 		chat1Id, err := restClient.CreateChat(ctx, user1, chat1Name)
@@ -345,7 +345,7 @@ func TestAddParticipant(t *testing.T) {
 		assert.NoError(t, err, "error in getting chat")
 		assert.Equal(t, chat1Name, title)
 
-		message1Text := "new message 1"
+		const message1Text = "new message 1"
 
 		message1Id, err := restClient.CreateMessage(ctx, user1, chat1Id, message1Text)
 		assert.NoError(t, err, "error in creating message")
@@ -390,7 +390,7 @@ func TestAddParticipant(t *testing.T) {
 		assert.Equal(t, int64(2), chat1OfUser2.ParticipantsCount)
 		assert.Equal(t, []int64{2, 1}, chat1OfUser2.ParticipantIds)
 
-		chat1NewName := "new chat 1 renamed"
+		const chat1NewName = "new chat 1 renamed"
 		err = restClient.EditChat(ctx, user1, chat1NewName, false)
 		assert.NoError(t, err, "error in changing chat")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
@@ -428,10 +428,10 @@ func TestDeleteParticipant(t *testing.T) {
 		m *cqrs.CommonProjection,
 		lc fx.Lifecycle,
 	) {
-		var user1 int64 = 1
-		var user2 int64 = 2
+		const user1 int64 = 1
+		const user2 int64 = 2
+		const chat1Name = "new chat 1"
 
-		chat1Name := "new chat 1"
 		ctx := context.Background()
 
 		chat1Id, err := restClient.CreateChat(ctx, user1, chat1Name)
@@ -443,7 +443,7 @@ func TestDeleteParticipant(t *testing.T) {
 		assert.NoError(t, err, "error in getting chat")
 		assert.Equal(t, chat1Name, title)
 
-		message1Text := "new message 1"
+		const message1Text = "new message 1"
 
 		message1Id, err := restClient.CreateMessage(ctx, user1, chat1Id, message1Text)
 		assert.NoError(t, err, "error in creating message")
@@ -518,9 +518,9 @@ func TestEditMessage(t *testing.T) {
 		m *cqrs.CommonProjection,
 		lc fx.Lifecycle,
 	) {
-		var user1 int64 = 1
+		const user1 int64 = 1
+		const chat1Name = "new chat 1"
 
-		chat1Name := "new chat 1"
 		ctx := context.Background()
 
 		chat1Id, err := restClient.CreateChat(ctx, user1, chat1Name)
@@ -532,11 +532,11 @@ func TestEditMessage(t *testing.T) {
 		assert.NoError(t, err, "error in getting chat")
 		assert.Equal(t, chat1Name, title)
 
-		message1Text := "new message 1"
+		const message1Text = "new message 1"
 		message1Id, err := restClient.CreateMessage(ctx, user1, chat1Id, message1Text)
 		assert.NoError(t, err, "error in creating message")
 
-		message2Text := "new message 2"
+		const message2Text = "new message 2"
 		message2Id, err := restClient.CreateMessage(ctx, user1, chat1Id, message2Text)
 		assert.NoError(t, err, "error in creating message")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
@@ -559,7 +559,7 @@ func TestEditMessage(t *testing.T) {
 		assert.Equal(t, message2Id, message2.Id)
 		assert.Equal(t, message2Text, message2.Content)
 
-		message1TextNew := "new message 1 edited"
+		const message1TextNew = "new message 1 edited"
 		err = restClient.EditMessage(ctx, user1, chat1Id, message1.Id, message1TextNew)
 		assert.NoError(t, err, "error in creating message")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
@@ -582,7 +582,7 @@ func TestEditMessage(t *testing.T) {
 		assert.Equal(t, message2Id, message2New.Id)
 		assert.Equal(t, message2Text, message2New.Content)
 
-		message2TextNew := "new message 1 edited"
+		const message2TextNew = "new message 1 edited"
 		err = restClient.EditMessage(ctx, user1, chat1Id, message2.Id, message2TextNew)
 		assert.NoError(t, err, "error in creating message")
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
@@ -616,9 +616,9 @@ func TestBlog(t *testing.T) {
 		m *cqrs.CommonProjection,
 		lc fx.Lifecycle,
 	) {
-		var user1 int64 = 1
+		const user1 int64 = 1
+		const chat1Name = "new chat 1"
 
-		chat1Name := "new chat 1"
 		ctx := context.Background()
 
 		chat1Id, err := restClient.CreateChat(ctx, user1, chat1Name)
@@ -629,11 +629,11 @@ func TestBlog(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
-		message1Text := "new message 1"
+		const message1Text = "new message 1"
 		message1Id, err := restClient.CreateMessage(ctx, user1, chat1Id, message1Text)
 		assert.NoError(t, err, "error in creating message")
 
-		message2Text := "new message 2"
+		const message2Text = "new message 2"
 		message2Id, err := restClient.CreateMessage(ctx, user1, chat1Id, message2Text)
 		assert.NoError(t, err, "error in creating message")
 
@@ -666,8 +666,8 @@ func TestChatPaginate(t *testing.T) {
 	) {
 		const user1 int64 = 1
 		const num = 1000
+		const chatPrefix = "generated_chat"
 
-		chatPrefix := "generated_chat"
 		ctx := context.Background()
 
 		for i := 1; i <= num; i++ {
