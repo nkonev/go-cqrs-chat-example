@@ -68,7 +68,7 @@ func TestImport(t *testing.T) {
 		assert.NoError(t, err, "error in char participants")
 		assert.Equal(t, []int64{user1}, chat1Participants)
 
-		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id)
+		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id, nil)
 		assert.NoError(t, err, "error in getting messages")
 		assert.Equal(t, 1, len(chat1Messages))
 		message1 := chat1Messages[0]
@@ -145,7 +145,7 @@ func TestImport(t *testing.T) {
 		assert.NoError(t, err, "error in char participants")
 		assert.Equal(t, []int64{user1}, chat1Participants)
 
-		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id)
+		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id, nil)
 		assert.NoError(t, err, "error in getting messages")
 		assert.Equal(t, 1, len(chat1Messages))
 		message1 := chat1Messages[0]

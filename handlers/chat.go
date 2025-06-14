@@ -163,15 +163,6 @@ func (ch *ChatHandler) PinChat(g *gin.Context) {
 	g.Status(http.StatusOK)
 }
 
-const SizeParam = "size"
-const ReverseParam = "reverse"
-
-const PinnedParam = "pinned"
-const LastUpdateDateTimeParam = "lastUpdateDateTime"
-const ChatIdParam = "id"
-
-const IncludeStartingFromParam = "includeStartingFrom"
-
 func (ch *ChatHandler) SearchChats(g *gin.Context) {
 	userId, err := getUserId(g)
 	if err != nil {

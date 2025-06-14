@@ -14,6 +14,16 @@ import (
 	"time"
 )
 
+const SizeParam = "size"
+const ReverseParam = "reverse"
+
+const PinnedParam = "pinned"
+const LastUpdateDateTimeParam = "lastUpdateDateTime"
+const ChatIdParam = "id"
+
+const IncludeStartingFromParam = "includeStartingFrom"
+const StartingFromItemId = "startingFromItemId"
+
 func bindHttpHandlers(
 	ginRouter *gin.Engine,
 	chatHandler *ChatHandler,

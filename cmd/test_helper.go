@@ -139,24 +139,24 @@ func waitForHealthCheck(lgr *logger.LoggerWrapper, restClient *client.RestClient
 	lgr.Info("chat have started")
 }
 
-func isChatExists(ctx context.Context, co db.CommonOperations, chatTitle string) (bool, error) {
-	r := co.QueryRowContext(ctx, "select exists(select * from chat_common where title = $1 limit 1)", chatTitle)
-	var blog bool
-	err := r.Scan(&blog)
+func isChatExists(ctx context.Context, co db.CommonOperations, chatId int64) (bool, error) {
+	r := co.QueryRowContext(ctx, "select exists(select * from chat_common where id = $1 limit 1)", chatId)
+	var exists bool
+	err := r.Scan(&exists)
 	if err != nil {
 		return false, err
 	}
-	return blog, nil
+	return exists, nil
 }
 
-func waitForChatExists(lgr *logger.LoggerWrapper, dba *db.DB, chatTitle string) {
+func waitForChatExists(lgr *logger.LoggerWrapper, dba *db.DB, chatId int64) {
 	ctx := context.Background()
 
 	i := 0
 	const maxAttempts = 120
 	success := false
 	for ; i <= maxAttempts; i++ {
-		exists, err := isChatExists(ctx, dba, chatTitle)
+		exists, err := isChatExists(ctx, dba, chatId)
 		if err != nil || !exists {
 			lgr.Info("Awaiting while chat appear")
 			time.Sleep(time.Second * 1)
@@ -170,4 +170,37 @@ func waitForChatExists(lgr *logger.LoggerWrapper, dba *db.DB, chatTitle string) 
 		panic("Cannot await for chat will appear")
 	}
 	lgr.Info("chat appeared")
+}
+
+func isMessageExists(ctx context.Context, co db.CommonOperations, chatId, messageId int64) (bool, error) {
+	r := co.QueryRowContext(ctx, "select exists(select * from message where chat_id = $1 and id = $2 limit 1)", chatId, messageId)
+	var exists bool
+	err := r.Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
+func waitForMessageExists(lgr *logger.LoggerWrapper, dba *db.DB, chatId, messageId int64) {
+	ctx := context.Background()
+
+	i := 0
+	const maxAttempts = 120
+	success := false
+	for ; i <= maxAttempts; i++ {
+		exists, err := isMessageExists(ctx, dba, chatId, messageId)
+		if err != nil || !exists {
+			lgr.Info("Awaiting while message appear")
+			time.Sleep(time.Second * 1)
+			continue
+		} else {
+			success = true
+			break
+		}
+	}
+	if !success {
+		panic("Cannot await for message will appear")
+	}
+	lgr.Info("message appeared")
 }

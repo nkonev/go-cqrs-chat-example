@@ -14,6 +14,7 @@ import (
 	"go-cqrs-chat-example/utils"
 	"go.uber.org/fx"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 )
@@ -64,7 +65,7 @@ func TestUnreads(t *testing.T) {
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 0, len(user3Chats))
 
-		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id)
+		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id, nil)
 		assert.NoError(t, err, "error in getting messages")
 		assert.Equal(t, 1, len(chat1Messages))
 		message1 := chat1Messages[0]
@@ -191,7 +192,7 @@ func TestPinChat(t *testing.T) {
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 0, len(user2Chats))
 
-		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id)
+		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id, nil)
 		assert.NoError(t, err, "error in getting messages")
 		assert.Equal(t, 1, len(chat1Messages))
 		message1 := chat1Messages[0]
@@ -283,7 +284,7 @@ func TestDeleteChat(t *testing.T) {
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 0, len(user2Chats))
 
-		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id)
+		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id, nil)
 		assert.NoError(t, err, "error in getting messages")
 		assert.Equal(t, 1, len(chat1Messages))
 		message1 := chat1Messages[0]
@@ -364,7 +365,7 @@ func TestAddParticipant(t *testing.T) {
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 0, len(user2Chats))
 
-		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id)
+		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id, nil)
 		assert.NoError(t, err, "error in getting messages")
 		assert.Equal(t, 1, len(chat1Messages))
 		message1 := chat1Messages[0]
@@ -462,7 +463,7 @@ func TestDeleteParticipant(t *testing.T) {
 		assert.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 0, len(user2Chats))
 
-		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id)
+		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id, nil)
 		assert.NoError(t, err, "error in getting messages")
 		assert.Equal(t, 1, len(chat1Messages))
 		message1 := chat1Messages[0]
@@ -549,11 +550,11 @@ func TestEditMessage(t *testing.T) {
 		assert.Equal(t, int64(0), chat1OfUser1.UnreadMessages)
 		assert.Equal(t, message2Text, *chat1OfUser1.LastMessageContent)
 
-		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id)
+		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id, nil)
 		assert.NoError(t, err, "error in getting messages")
 		assert.Equal(t, 2, len(chat1Messages))
-		message1 := chat1Messages[1]
-		message2 := chat1Messages[0]
+		message1 := chat1Messages[0]
+		message2 := chat1Messages[1]
 		assert.Equal(t, message1Id, message1.Id)
 		assert.Equal(t, message1Text, message1.Content)
 		assert.Equal(t, message2Id, message2.Id)
@@ -572,11 +573,11 @@ func TestEditMessage(t *testing.T) {
 		assert.Equal(t, int64(0), chat1OfUser1New.UnreadMessages)
 		assert.Equal(t, message2Text, *chat1OfUser1New.LastMessageContent)
 
-		chat1MessagesNew, err := restClient.GetMessages(ctx, user1, chat1Id)
+		chat1MessagesNew, err := restClient.GetMessages(ctx, user1, chat1Id, nil)
 		assert.NoError(t, err, "error in getting messages")
 		assert.Equal(t, 2, len(chat1MessagesNew))
-		message1New := chat1MessagesNew[1]
-		message2New := chat1MessagesNew[0]
+		message1New := chat1MessagesNew[0]
+		message2New := chat1MessagesNew[1]
 		assert.Equal(t, message1Id, message1New.Id)
 		assert.Equal(t, message1TextNew, message1New.Content)
 		assert.Equal(t, message2Id, message2New.Id)
@@ -595,11 +596,11 @@ func TestEditMessage(t *testing.T) {
 		assert.Equal(t, int64(0), chat1OfUser1New2.UnreadMessages)
 		assert.Equal(t, message2TextNew, *chat1OfUser1New2.LastMessageContent)
 
-		chat1MessagesNew2, err := restClient.GetMessages(ctx, user1, chat1Id)
+		chat1MessagesNew2, err := restClient.GetMessages(ctx, user1, chat1Id, nil)
 		assert.NoError(t, err, "error in getting messages")
 		assert.Equal(t, 2, len(chat1MessagesNew2))
-		message1New2 := chat1MessagesNew2[1]
-		message2New2 := chat1MessagesNew2[0]
+		message1New2 := chat1MessagesNew2[0]
+		message2New2 := chat1MessagesNew2[1]
 		assert.Equal(t, message1Id, message1New2.Id)
 		assert.Equal(t, message1TextNew, message1New2.Content)
 		assert.Equal(t, message2Id, message2New2.Id)
@@ -670,13 +671,14 @@ func TestChatPaginate(t *testing.T) {
 
 		ctx := context.Background()
 
+		var lastChatId int64
+		var err error
 		for i := 1; i <= num; i++ {
-			chat1Id, err := restClient.CreateChat(ctx, user1, chatPrefix+utils.ToString(i))
+			lastChatId, err = restClient.CreateChat(ctx, user1, chatPrefix+utils.ToString(i))
 			assert.NoError(t, err, "error in creating chat")
-			assert.True(t, chat1Id > 0)
+			assert.True(t, lastChatId > 0)
 		}
-		lastChatTitle := chatPrefix + utils.ToString(num)
-		waitForChatExists(lgr, dba, lastChatTitle)
+		waitForChatExists(lgr, dba, lastChatId)
 		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		// get initial page
@@ -710,5 +712,71 @@ func TestChatPaginate(t *testing.T) {
 		assert.Equal(t, "generated_chat959", resp2[1].Title)
 		assert.Equal(t, "generated_chat958", resp2[2].Title)
 		assert.Equal(t, "generated_chat921", resp2[39].Title)
+	})
+}
+
+func TestMessagePaginate(t *testing.T) {
+	startAppFull(t, func(
+		lgr *logger.LoggerWrapper,
+		cfg *config.AppConfig,
+		restClient *client.RestClient,
+		saramaClient sarama.Client,
+		dba *db.DB,
+		lc fx.Lifecycle,
+	) {
+		const user1 int64 = 1
+		const chat1Name = "new chat 1"
+		const num = 500
+
+		ctx := context.Background()
+
+		chat1Id, err := restClient.CreateChat(ctx, user1, chat1Name)
+		assert.NoError(t, err, "error in creating chat")
+		assert.True(t, chat1Id > 0)
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
+
+		const messagePrefix = "generated_message"
+
+		var lastMessageId int64
+		for i := 1; i <= num; i++ {
+			lastMessageId, err = restClient.CreateMessage(ctx, user1, chat1Id, messagePrefix+utils.ToString(i))
+			assert.NoError(t, err, "error in creating message")
+		}
+		waitForMessageExists(lgr, dba, chat1Id, lastMessageId)
+		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
+
+		// get first page
+		query1 := url.Values{
+			handlers.SizeParam:          []string{utils.ToString(3)},
+			handlers.StartingFromItemId: []string{utils.ToString(6)},
+		}
+		resp1, err := restClient.GetMessages(ctx, user1, chat1Id, &query1)
+		assert.NoError(t, err)
+
+		assert.Equal(t, 3, len(resp1))
+		assert.True(t, strings.HasPrefix(resp1[0].Content, "generated_message7")) // different from chat because of different way of generating test data
+		assert.True(t, strings.HasPrefix(resp1[1].Content, "generated_message8"))
+		assert.True(t, strings.HasPrefix(resp1[2].Content, "generated_message9"))
+		assert.Equal(t, int64(7), resp1[0].Id)
+		assert.Equal(t, int64(8), resp1[1].Id)
+		assert.Equal(t, int64(9), resp1[2].Id)
+
+		lastId := resp1[len(resp1)-1].Id
+
+		// get second page
+		query2 := url.Values{
+			handlers.SizeParam:          []string{utils.ToString(3)},
+			handlers.StartingFromItemId: []string{utils.ToString(lastId)},
+		}
+		resp2, err := restClient.GetMessages(ctx, user1, chat1Id, &query2)
+		assert.NoError(t, err)
+
+		assert.Equal(t, 3, len(resp2))
+		assert.True(t, strings.HasPrefix(resp2[0].Content, "generated_message10"))
+		assert.True(t, strings.HasPrefix(resp2[1].Content, "generated_message11"))
+		assert.True(t, strings.HasPrefix(resp2[2].Content, "generated_message12"))
+		assert.Equal(t, int64(10), resp2[0].Id)
+		assert.Equal(t, int64(11), resp2[1].Id)
+		assert.Equal(t, int64(12), resp2[2].Id)
 	})
 }

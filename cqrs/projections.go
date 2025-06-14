@@ -912,21 +912,49 @@ func (m *CommonProjection) GetLastMessageId(ctx context.Context, chatId int64) (
 type MessageViewDto struct {
 	Id             int64      `json:"id"`
 	OwnerId        int64      `json:"ownerId"`
-	Content        string     `json:"content"`
+	Content        string     `json:"text"` // for sake compatibility
 	BlogPost       bool       `json:"blogPost"`
 	CreateDateTime time.Time  `json:"createDateTime"`
 	UpdateDateTime *time.Time `json:"editDateTime"` // for sake compatibility
 }
 
-func (m *CommonProjection) GetMessages(ctx context.Context, chatId int64) ([]MessageViewDto, error) {
+func (m *CommonProjection) GetMessages(ctx context.Context, chatId int64, size int32, startingFromItemId *int64, includeStartingFrom, reverse bool) ([]MessageViewDto, error) {
 	ma := []MessageViewDto{}
 
-	rows, err := m.db.QueryContext(ctx, `
-		select id, owner_id, content, blog_post, create_date_time, update_date_time
-		from message 
-		where chat_id = $1 
-		order by id desc
-	`, chatId)
+	queryArgs := []any{chatId, size}
+
+	order := ""
+	nonEquality := ""
+	if reverse {
+		order = "desc"
+		if includeStartingFrom {
+			nonEquality = "<="
+		} else {
+			nonEquality = "<"
+		}
+	} else {
+		order = "asc"
+		if includeStartingFrom {
+			nonEquality = ">="
+		} else {
+			nonEquality = ">"
+		}
+	}
+
+	paginationKeyset := ""
+	if startingFromItemId != nil {
+		paginationKeyset = fmt.Sprintf(` and m.id %s $3`, nonEquality)
+		queryArgs = append(queryArgs, *startingFromItemId)
+	}
+
+	rows, err := m.db.QueryContext(ctx, fmt.Sprintf(`
+			select m.id, m.owner_id, m.content, m.blog_post, m.create_date_time, m.update_date_time
+			from message m
+			where chat_id = $1 %s
+			order by m.id %s 
+			limit $2
+		`, paginationKeyset, order),
+		queryArgs...)
 	if err != nil {
 		return ma, err
 	}

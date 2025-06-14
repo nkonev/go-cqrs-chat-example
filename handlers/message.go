@@ -250,7 +250,22 @@ func (mc *MessageHandler) SearchMessages(g *gin.Context) {
 		return
 	}
 
-	messages, err := mc.commonProjection.GetMessages(g.Request.Context(), chatId)
+	size := utils.FixSizeString(g.Query(SizeParam))
+	reverse := utils.GetBoolean(g.Query(ReverseParam))
+	startingFromItemIdString := g.Query(StartingFromItemId)
+	var startingFromItemId *int64
+	if startingFromItemIdString != "" {
+		startingFromItemId2, err := utils.ParseInt64(startingFromItemIdString) // exclusive
+		if err != nil {
+			mc.lgr.WithTrace(g.Request.Context()).Error("Error parsing startingFromItemId", "err", err)
+			g.Status(http.StatusInternalServerError)
+			return
+		}
+		startingFromItemId = &startingFromItemId2
+	}
+	includeStartingFrom := utils.GetBoolean(g.Query(IncludeStartingFromParam))
+
+	messages, err := mc.commonProjection.GetMessages(g.Request.Context(), chatId, size, startingFromItemId, includeStartingFrom, reverse)
 	if err != nil {
 		mc.lgr.WithTrace(g.Request.Context()).Error("Error getting messages", "err", err)
 		g.Status(http.StatusInternalServerError)
