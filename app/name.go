@@ -1,3 +1,3 @@
 package app
 
-const TRACE_RESOURCE = "chat-cqrs-example"
+const TRACE_RESOURCE = "chat"
