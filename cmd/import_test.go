@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/IBM/sarama"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go-cqrs-chat-example/app"
 	"go-cqrs-chat-example/client"
 	"go-cqrs-chat-example/config"
@@ -48,28 +49,28 @@ func TestImport(t *testing.T) {
 
 		var err error
 		chat1Id, err = restClient.CreateChat(ctx, user1, chat1Name)
-		assert.NoError(t, err, "error in creating chat")
+		require.NoError(t, err, "error in creating chat")
 		assert.True(t, chat1Id > 0)
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
+		require.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		message1Id, err = restClient.CreateMessage(ctx, user1, chat1Id, message1Text)
-		assert.NoError(t, err, "error in creating message")
+		require.NoError(t, err, "error in creating message")
 
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
+		require.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		user1Chats, err := restClient.GetChatsByUserId(ctx, user1, nil)
-		assert.NoError(t, err, "error in getting chats")
+		require.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user1Chats))
 		chat1OfUser1 := user1Chats[0]
 		assert.Equal(t, chat1Name, chat1OfUser1.Title)
 		assert.Equal(t, int64(0), chat1OfUser1.UnreadMessages)
 
 		chat1Participants, err := restClient.GetChatParticipants(ctx, chat1Id)
-		assert.NoError(t, err, "error in char participants")
+		require.NoError(t, err, "error in char participants")
 		assert.Equal(t, []int64{user1}, chat1Participants)
 
 		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id, nil)
-		assert.NoError(t, err, "error in getting messages")
+		require.NoError(t, err, "error in getting messages")
 		assert.Equal(t, 1, len(chat1Messages))
 		message1 := chat1Messages[0]
 		assert.Equal(t, message1Id, message1.Id)
@@ -132,21 +133,21 @@ func TestImport(t *testing.T) {
 	) {
 		ctx := context.Background()
 
-		assert.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
+		require.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		user1Chats, err := restClient.GetChatsByUserId(ctx, user1, nil)
-		assert.NoError(t, err, "error in getting chats")
+		require.NoError(t, err, "error in getting chats")
 		assert.Equal(t, 1, len(user1Chats))
 		chat1OfUser1 := user1Chats[0]
 		assert.Equal(t, chat1Name, chat1OfUser1.Title)
 		assert.Equal(t, int64(0), chat1OfUser1.UnreadMessages)
 
 		chat1Participants, err := restClient.GetChatParticipants(ctx, chat1Id)
-		assert.NoError(t, err, "error in char participants")
+		require.NoError(t, err, "error in char participants")
 		assert.Equal(t, []int64{user1}, chat1Participants)
 
 		chat1Messages, err := restClient.GetMessages(ctx, user1, chat1Id, nil)
-		assert.NoError(t, err, "error in getting messages")
+		require.NoError(t, err, "error in getting messages")
 		assert.Equal(t, 1, len(chat1Messages))
 		message1 := chat1Messages[0]
 		assert.Equal(t, message1Id, message1.Id)
