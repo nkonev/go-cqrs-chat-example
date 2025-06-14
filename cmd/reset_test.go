@@ -19,7 +19,7 @@ import (
 	"testing"
 )
 
-func TestImport(t *testing.T) {
+func TestReset(t *testing.T) {
 	cfg, err := config.CreateTestTypedConfig()
 	if err != nil {
 		panic(err)
@@ -77,28 +77,8 @@ func TestImport(t *testing.T) {
 		assert.Equal(t, message1Text, message1.Content)
 	})
 
-	lgr.Info("Start export command")
+	lgr.Info("Start reset command")
 	appExportFx := fx.New(
-		fx.Supply(cfg),
-		fx.Supply(lgr),
-		fx.WithLogger(func(lgr *logger.LoggerWrapper) fxevent.Logger {
-			return &fxevent.SlogLogger{Logger: lgr.Logger}
-		}),
-		fx.Provide(
-			kafka.ConfigureSaramaClient,
-		),
-		fx.Invoke(
-			kafka.Export,
-			app.Shutdown,
-		),
-	)
-	appExportFx.Run()
-	lgr.Info("Exit export command")
-
-	resetInfra(lgr, cfg)
-
-	lgr.Info("Start import command")
-	appImportFx := fx.New(
 		fx.Supply(cfg),
 		fx.Supply(lgr),
 		fx.WithLogger(func(lgr *logger.LoggerWrapper) fxevent.Logger {
@@ -113,16 +93,18 @@ func TestImport(t *testing.T) {
 			cqrs.ConfigureCommonProjection,
 		),
 		fx.Invoke(
+			db.RunResetDatabase,
+			kafka.RunResetPartitions,
 			db.RunMigrations,
 			kafka.RunCreateTopic,
-			kafka.Import,
 			cqrs.SetIsNeedToFastForwardSequences,
 			app.Shutdown,
 		),
 	)
-	appImportFx.Run()
-	lgr.Info("Exit import command")
+	appExportFx.Run()
+	lgr.Info("Exit reset command")
 
+	// normal run after reset
 	runTestFunc(lgr, cfg, t, func(
 		lgr *logger.LoggerWrapper,
 		cfg *config.AppConfig,
