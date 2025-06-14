@@ -73,13 +73,16 @@ func TestUnreads(t *testing.T) {
 		assert.Equal(t, message1Id, message1.Id)
 		assert.Equal(t, message1Text, message1.Content)
 
-		err = restClient.AddChatParticipants(ctx, chat1Id, []int64{user2, user3})
+		// 2 separate calls to guarantee order
+		err = restClient.AddChatParticipants(ctx, chat1Id, []int64{user2})
+		require.NoError(t, err, "error in adding participants")
+		err = restClient.AddChatParticipants(ctx, chat1Id, []int64{user3})
 		require.NoError(t, err, "error in adding participants")
 		require.NoError(t, kafka.WaitForAllEventsProcessed(lgr, cfg, saramaClient, lc), "error in waiting for processing events")
 
 		chat1Participants, err := restClient.GetChatParticipants(ctx, chat1Id)
 		require.NoError(t, err, "error in chat participants")
-		assert.Equal(t, []int64{user1, user2, user3}, chat1Participants)
+		assert.Equal(t, []int64{user3, user2, user1}, chat1Participants)
 
 		user2ChatsNew, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		require.NoError(t, err, "error in getting chats")
@@ -206,7 +209,7 @@ func TestPinChat(t *testing.T) {
 
 		chat1Participants, err := restClient.GetChatParticipants(ctx, chat1Id)
 		require.NoError(t, err, "error in chat participants")
-		assert.Equal(t, []int64{user1, user2}, chat1Participants)
+		assert.Equal(t, []int64{user2, user1}, chat1Participants)
 
 		user2ChatsNew, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		require.NoError(t, err, "error in getting chats")
@@ -298,7 +301,7 @@ func TestDeleteChat(t *testing.T) {
 
 		chat1Participants, err := restClient.GetChatParticipants(ctx, chat1Id)
 		require.NoError(t, err, "error in chat participants")
-		assert.Equal(t, []int64{user1, user2}, chat1Participants)
+		assert.Equal(t, []int64{user2, user1}, chat1Participants)
 
 		user2ChatsNew, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		require.NoError(t, err, "error in getting chats")
@@ -379,7 +382,7 @@ func TestAddParticipant(t *testing.T) {
 
 		chat1Participants, err := restClient.GetChatParticipants(ctx, chat1Id)
 		require.NoError(t, err, "error in chat participants")
-		assert.Equal(t, []int64{user1, user2}, chat1Participants)
+		assert.Equal(t, []int64{user2, user1}, chat1Participants)
 
 		user2ChatsNew, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		require.NoError(t, err, "error in getting chats")
@@ -477,7 +480,7 @@ func TestDeleteParticipant(t *testing.T) {
 
 		chat1Participants, err := restClient.GetChatParticipants(ctx, chat1Id)
 		require.NoError(t, err, "error in chat participants")
-		assert.Equal(t, []int64{user1, user2}, chat1Participants)
+		assert.Equal(t, []int64{user2, user1}, chat1Participants)
 
 		user2ChatsNew, err := restClient.GetChatsByUserId(ctx, user2, nil)
 		require.NoError(t, err, "error in getting chats")

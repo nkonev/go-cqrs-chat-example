@@ -851,7 +851,7 @@ func (m *CommonProjection) OnMessageBlogPostMade(ctx context.Context, event *Mes
 }
 
 func (m *CommonProjection) GetParticipantIdsForExternal(ctx context.Context, chatId int64, size int32, offset int64) ([]int64, error) {
-	return getParticipantIdsCommon(ctx, m.db, chatId, nil, size, offset)
+	return getParticipantIdsCommon(ctx, m.db, chatId, nil, size, offset, true)
 }
 
 func (m *CommonProjection) GetMessageOwner(ctx context.Context, chatId, messageId int64) (int64, error) {
@@ -1074,14 +1074,19 @@ func (m *CommonProjection) GetChatByUserIdAndChatId(ctx context.Context, userId,
 	return t, nil
 }
 
-func getParticipantIdsCommon(ctx context.Context, co db.CommonOperations, chatId int64, excluding []int64, participantsSize int32, participantsOffset int64) ([]int64, error) {
+func getParticipantIdsCommon(ctx context.Context, co db.CommonOperations, chatId int64, excluding []int64, participantsSize int32, participantsOffset int64, reverseOrder bool) ([]int64, error) {
 	var rows *sql.Rows
 	var err error
 
+	order := "asc"
+	if reverseOrder {
+		order = "desc"
+	}
+
 	if len(excluding) > 0 {
-		rows, err = co.QueryContext(ctx, "SELECT user_id FROM chat_participant WHERE chat_id = $1 AND user_id not in (select * from unnest(cast ($4 as bigint[]))) order by user_id LIMIT $2 OFFSET $3", chatId, participantsSize, participantsOffset, excluding)
+		rows, err = co.QueryContext(ctx, fmt.Sprintf("SELECT user_id FROM chat_participant WHERE chat_id = $1 AND user_id not in (select * from unnest(cast ($4 as bigint[]))) order by create_date_time %s LIMIT $2 OFFSET $3", order), chatId, participantsSize, participantsOffset, excluding)
 	} else {
-		rows, err = co.QueryContext(ctx, "SELECT user_id FROM chat_participant WHERE chat_id = $1 order by user_id LIMIT $2 OFFSET $3", chatId, participantsSize, participantsOffset)
+		rows, err = co.QueryContext(ctx, fmt.Sprintf("SELECT user_id FROM chat_participant WHERE chat_id = $1 order by create_date_time %s LIMIT $2 OFFSET $3", order), chatId, participantsSize, participantsOffset)
 	}
 
 	if err != nil {
@@ -1105,7 +1110,7 @@ func (m *CommonProjection) IterateOverChatParticipantIds(ctx context.Context, co
 	var lastError error
 	for page := int64(0); shouldContinue; page++ {
 		offset := utils.GetOffset(page, utils.DefaultSize)
-		participantIds, err := getParticipantIdsCommon(ctx, co, chatId, excluding, utils.DefaultSize, offset)
+		participantIds, err := getParticipantIdsCommon(ctx, co, chatId, excluding, utils.DefaultSize, offset, false)
 		if err != nil {
 			m.lgr.WithTrace(ctx).Error("Got error during getting portion", "err", err)
 			lastError = err
