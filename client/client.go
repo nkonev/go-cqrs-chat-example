@@ -190,7 +190,7 @@ func queryRawResponse[ReqDto any](ctx context.Context, rc *RestClient, behalfUse
 		}
 		if rc.cfg.RestClientConfig.PrettyLog {
 			fmt.Printf("[test http client] >>>\n")
-			fmt.Printf(string(dumpReq) + "\n")
+			fmt.Printf("%s\n", string(dumpReq))
 		} else {
 			rc.lgr.Info("[test http client] >>>")
 			rc.lgr.Info(string(dumpReq))
@@ -215,7 +215,7 @@ func queryRawResponse[ReqDto any](ctx context.Context, rc *RestClient, behalfUse
 		}
 		if rc.cfg.RestClientConfig.PrettyLog {
 			fmt.Printf("[test http client] <<<\n")
-			fmt.Printf(string(dumpResp) + "\n")
+			fmt.Printf("%s\n", string(dumpResp))
 		} else {
 			rc.lgr.Info("[test http client] <<<")
 			rc.lgr.Info(string(dumpResp))

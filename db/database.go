@@ -31,7 +31,7 @@ func makeLoggingDriver(cfg *config.AppConfig, lgr *logger.LoggerWrapper) driver.
 			if cfg.PostgreSQLConfig.Dump {
 				s := fmt.Sprintf("Exec: %s; args = %v (%s)\n", stmt.QueryString, writeNamedValues(args), time.Since(ctx.(time.Time)))
 				if cfg.PostgreSQLConfig.PrettyLog {
-					fmt.Printf("[SQL] trace_id=" + logger.GetTraceId(c) + ": " + s + "\n")
+					fmt.Printf("[SQL] trace_id=%s: %s\n", logger.GetTraceId(c), s)
 				} else {
 					lgr.WithTrace(c).Debug(s)
 				}
@@ -46,7 +46,7 @@ func makeLoggingDriver(cfg *config.AppConfig, lgr *logger.LoggerWrapper) driver.
 			if cfg.PostgreSQLConfig.Dump {
 				s := fmt.Sprintf("Query: %s; args = %v (%s)\n", stmt.QueryString, writeNamedValues(args), time.Since(ctx.(time.Time)))
 				if cfg.PostgreSQLConfig.PrettyLog {
-					fmt.Printf("[SQL] trace_id=" + logger.GetTraceId(c) + ": " + s + "\n")
+					fmt.Printf("[SQL] trace_id=%s: %s\n", logger.GetTraceId(c), s)
 				} else {
 					lgr.WithTrace(c).Debug(s)
 				}
