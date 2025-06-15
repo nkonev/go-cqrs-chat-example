@@ -48,6 +48,14 @@ func GetBooleanNullable(s string) *bool {
 	}
 }
 
+func GetBooleanOr(s string, def bool) bool {
+	v := GetBooleanNullable(s)
+	if v != nil {
+		return *v
+	}
+	return def
+}
+
 func GetTimeNullable(s string) *time.Time {
 	time1, err := time.Parse(time.RFC3339Nano, s)
 	if err != nil {

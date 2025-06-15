@@ -31,7 +31,12 @@ func NewBlogHandler(
 }
 
 func (ch *BlogHandler) SearchBlogs(g *gin.Context) {
-	chats, err := ch.commonProjection.GetBlogs(g.Request.Context())
+	page := utils.FixPageString(g.Query("page"))
+	size := utils.FixSizeString(g.Query("size"))
+	offset := utils.GetOffset(page, size)
+	reverse := utils.GetBooleanOr(g.Query(ReverseParam), true)
+
+	chats, err := ch.commonProjection.GetBlogs(g.Request.Context(), size, offset, reverse)
 	if err != nil {
 		ch.lgr.WithTrace(g.Request.Context()).Error("Error getting blogs", "err", err)
 		g.Status(http.StatusInternalServerError)

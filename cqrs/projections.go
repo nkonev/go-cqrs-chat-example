@@ -850,8 +850,8 @@ func (m *CommonProjection) OnMessageBlogPostMade(ctx context.Context, event *Mes
 	return errOuter
 }
 
-func (m *CommonProjection) GetParticipantIdsForExternal(ctx context.Context, chatId int64, size int32, offset int64) ([]int64, error) {
-	return getParticipantIdsCommon(ctx, m.db, chatId, nil, size, offset, true)
+func (m *CommonProjection) GetParticipantIdsForExternal(ctx context.Context, chatId int64, size int32, offset int64, reverse bool) ([]int64, error) {
+	return getParticipantIdsCommon(ctx, m.db, chatId, nil, size, offset, reverse)
 }
 
 func (m *CommonProjection) GetMessageOwner(ctx context.Context, chatId, messageId int64) (int64, error) {
@@ -1164,10 +1164,15 @@ type BlogViewDto struct {
 	CreateDateTime time.Time `json:"createDateTime"`
 }
 
-func (m *CommonProjection) GetBlogs(ctx context.Context) ([]BlogViewDto, error) {
+func (m *CommonProjection) GetBlogs(ctx context.Context, size int32, offset int64, reverseOrder bool) ([]BlogViewDto, error) {
 	ma := []BlogViewDto{}
 
-	rows, err := m.db.QueryContext(ctx, `
+	order := "asc"
+	if reverseOrder {
+		order = "desc"
+	}
+
+	rows, err := m.db.QueryContext(ctx, fmt.Sprintf(`
 		select 
 		    b.id,
 			b.owner_id,
@@ -1175,8 +1180,9 @@ func (m *CommonProjection) GetBlogs(ctx context.Context) ([]BlogViewDto, error) 
 		    b.preview,
 		    b.create_date_time
 		from blog b
-		order by b.create_date_time desc 
-	`)
+		order by b.create_date_time %s
+		limit $1 offset $2
+	`, order), size, offset)
 	if err != nil {
 		return ma, err
 	}

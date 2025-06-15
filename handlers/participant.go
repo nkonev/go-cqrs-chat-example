@@ -113,8 +113,9 @@ func (ch *ParticipantHandler) GetParticipants(g *gin.Context) {
 	participantsPage := utils.FixPageString(g.Query("page"))
 	participantsSize := utils.FixSizeString(g.Query("size"))
 	participantsOffset := utils.GetOffset(participantsPage, participantsSize)
+	reverse := utils.GetBooleanOr(g.Query(ReverseParam), true)
 
-	participants, err := ch.commonProjection.GetParticipantIdsForExternal(g.Request.Context(), chatId, participantsSize, participantsOffset)
+	participants, err := ch.commonProjection.GetParticipantIdsForExternal(g.Request.Context(), chatId, participantsSize, participantsOffset, reverse)
 	if err != nil {
 		ch.lgr.WithTrace(g.Request.Context()).Error("Error getting participants", "err", err)
 		g.Status(http.StatusInternalServerError)
