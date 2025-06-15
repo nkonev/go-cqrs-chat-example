@@ -14,15 +14,20 @@ import (
 	"time"
 )
 
+// query
+const PageParam = "page"
 const SizeParam = "size"
 const ReverseParam = "reverse"
-
 const PinnedParam = "pinned"
 const LastUpdateDateTimeParam = "lastUpdateDateTime"
-const ChatIdParam = "id"
-
 const IncludeStartingFromParam = "includeStartingFrom"
 const StartingFromItemId = "startingFromItemId"
+const PinParam = "pin"
+
+// path
+const ChatIdParam = "id"
+const MessageIdParam = "messageId"
+const BlogIdParam = "id"
 
 func bindHttpHandlers(
 	ginRouter *gin.Engine,

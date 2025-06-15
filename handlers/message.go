@@ -31,7 +31,7 @@ func NewMessageHandler(
 }
 
 func (mc *MessageHandler) CreateMessage(g *gin.Context) {
-	cid := g.Param("id")
+	cid := g.Param(ChatIdParam)
 
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
@@ -81,7 +81,7 @@ func (mc *MessageHandler) CreateMessage(g *gin.Context) {
 }
 
 func (mc *MessageHandler) EditMessage(g *gin.Context) {
-	cid := g.Param("id")
+	cid := g.Param(ChatIdParam)
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
 		mc.lgr.WithTrace(g.Request.Context()).Error("Error binding chatId", "err", err)
@@ -123,7 +123,7 @@ func (mc *MessageHandler) EditMessage(g *gin.Context) {
 }
 
 func (mc *MessageHandler) DeleteMessage(g *gin.Context) {
-	cid := g.Param("id")
+	cid := g.Param(ChatIdParam)
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
 		mc.lgr.WithTrace(g.Request.Context()).Error("Error binding chatId", "err", err)
@@ -131,7 +131,7 @@ func (mc *MessageHandler) DeleteMessage(g *gin.Context) {
 		return
 	}
 
-	mid := g.Param("messageId")
+	mid := g.Param(MessageIdParam)
 	messageId, err := utils.ParseInt64(mid)
 	if err != nil {
 		mc.lgr.WithTrace(g.Request.Context()).Error("Error binding messageId", "err", err)
@@ -163,7 +163,7 @@ func (mc *MessageHandler) DeleteMessage(g *gin.Context) {
 }
 
 func (mc *MessageHandler) ReadMessage(g *gin.Context) {
-	cid := g.Param("id")
+	cid := g.Param(ChatIdParam)
 
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
@@ -172,7 +172,7 @@ func (mc *MessageHandler) ReadMessage(g *gin.Context) {
 		return
 	}
 
-	mid := g.Param("messageId")
+	mid := g.Param(MessageIdParam)
 
 	messageId, err := utils.ParseInt64(mid)
 	if err != nil {
@@ -206,7 +206,7 @@ func (mc *MessageHandler) ReadMessage(g *gin.Context) {
 }
 
 func (mc *MessageHandler) MakeBlogPost(g *gin.Context) {
-	cid := g.Param("id")
+	cid := g.Param(ChatIdParam)
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
 		mc.lgr.WithTrace(g.Request.Context()).Error("Error binding chatId", "err", err)
@@ -214,7 +214,7 @@ func (mc *MessageHandler) MakeBlogPost(g *gin.Context) {
 		return
 	}
 
-	mid := g.Param("messageId")
+	mid := g.Param(MessageIdParam)
 
 	messageId, err := utils.ParseInt64(mid)
 	if err != nil {
@@ -241,7 +241,7 @@ func (mc *MessageHandler) MakeBlogPost(g *gin.Context) {
 }
 
 func (mc *MessageHandler) SearchMessages(g *gin.Context) {
-	cid := g.Param("id")
+	cid := g.Param(ChatIdParam)
 
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {

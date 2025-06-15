@@ -1256,15 +1256,21 @@ type CommentViewDto struct {
 	UpdateDateTime *time.Time `json:"editDateTime"` // for sake compatibility
 }
 
-func (m *CommonProjection) getComments(ctx context.Context, co db.CommonOperations, blogId, postMessageId int64) ([]CommentViewDto, error) {
+func (m *CommonProjection) getComments(ctx context.Context, co db.CommonOperations, blogId, postMessageId int64, size int32, offset int64, reverseOrder bool) ([]CommentViewDto, error) {
 	ma := []CommentViewDto{}
 
-	rows, err := co.QueryContext(ctx, `
+	order := "asc"
+	if reverseOrder {
+		order = "desc"
+	}
+
+	rows, err := co.QueryContext(ctx, fmt.Sprintf(`
 		select id, owner_id, content, create_date_time, update_date_time
 		from message 
 		where chat_id = $1 and id > $2
-		order by id desc
-	`, blogId, postMessageId)
+		order by id %s
+		limit $3 offset $4
+	`, order), blogId, postMessageId, size, offset)
 	if err != nil {
 		return ma, err
 	}
@@ -1280,13 +1286,13 @@ func (m *CommonProjection) getComments(ctx context.Context, co db.CommonOperatio
 	return ma, nil
 }
 
-func (m *CommonProjection) GetComments(ctx context.Context, blogId int64) ([]CommentViewDto, error) {
+func (m *CommonProjection) GetComments(ctx context.Context, blogId int64, size int32, offset int64, reverseOrder bool) ([]CommentViewDto, error) {
 	res, errOuter := db.TransactWithResult(ctx, m.db, func(tx *db.Tx) ([]CommentViewDto, error) {
 		postMessageId, err := m.getBlogPostMessageId(ctx, tx, blogId)
 		if err != nil {
 			return []CommentViewDto{}, err
 		}
-		comments, err := m.getComments(ctx, tx, blogId, postMessageId)
+		comments, err := m.getComments(ctx, tx, blogId, postMessageId, size, offset, reverseOrder)
 		if err != nil {
 			return []CommentViewDto{}, err
 		}

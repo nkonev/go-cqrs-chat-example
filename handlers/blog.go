@@ -31,8 +31,8 @@ func NewBlogHandler(
 }
 
 func (ch *BlogHandler) SearchBlogs(g *gin.Context) {
-	page := utils.FixPageString(g.Query("page"))
-	size := utils.FixSizeString(g.Query("size"))
+	page := utils.FixPageString(g.Query(PageParam))
+	size := utils.FixSizeString(g.Query(SizeParam))
 	offset := utils.GetOffset(page, size)
 	reverse := utils.GetBooleanOr(g.Query(ReverseParam), true)
 
@@ -46,7 +46,7 @@ func (ch *BlogHandler) SearchBlogs(g *gin.Context) {
 }
 
 func (ch *BlogHandler) GetBlog(g *gin.Context) {
-	cid := g.Param("id")
+	cid := g.Param(BlogIdParam)
 
 	blogId, err := utils.ParseInt64(cid)
 	if err != nil {
@@ -71,8 +71,7 @@ func (ch *BlogHandler) GetBlog(g *gin.Context) {
 }
 
 func (ch *BlogHandler) SearchComments(g *gin.Context) {
-	cid := g.Param("id")
-
+	cid := g.Param(BlogIdParam)
 	blogId, err := utils.ParseInt64(cid)
 	if err != nil {
 		ch.lgr.WithTrace(g.Request.Context()).Error("Error binding blogId", "err", err)
@@ -80,7 +79,12 @@ func (ch *BlogHandler) SearchComments(g *gin.Context) {
 		return
 	}
 
-	chats, err := ch.commonProjection.GetComments(g.Request.Context(), blogId)
+	page := utils.FixPageString(g.Query(PageParam))
+	size := utils.FixSizeString(g.Query(SizeParam))
+	offset := utils.GetOffset(page, size)
+	reverse := utils.GetBooleanOr(g.Query(ReverseParam), false)
+
+	chats, err := ch.commonProjection.GetComments(g.Request.Context(), blogId, size, offset, reverse)
 	if err != nil {
 		ch.lgr.WithTrace(g.Request.Context()).Error("Error getting blog comments", "err", err)
 		g.Status(http.StatusInternalServerError)

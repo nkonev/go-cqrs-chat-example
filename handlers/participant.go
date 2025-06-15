@@ -31,7 +31,7 @@ func NewParticipantHandler(
 }
 
 func (ch *ParticipantHandler) AddParticipant(g *gin.Context) {
-	cid := g.Param("id")
+	cid := g.Param(ChatIdParam)
 
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
@@ -66,7 +66,7 @@ func (ch *ParticipantHandler) AddParticipant(g *gin.Context) {
 }
 
 func (ch *ParticipantHandler) DeleteParticipant(g *gin.Context) {
-	cid := g.Param("id")
+	cid := g.Param(ChatIdParam)
 
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
@@ -101,7 +101,7 @@ func (ch *ParticipantHandler) DeleteParticipant(g *gin.Context) {
 }
 
 func (ch *ParticipantHandler) GetParticipants(g *gin.Context) {
-	cid := g.Param("id")
+	cid := g.Param(ChatIdParam)
 
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
@@ -110,8 +110,8 @@ func (ch *ParticipantHandler) GetParticipants(g *gin.Context) {
 		return
 	}
 
-	participantsPage := utils.FixPageString(g.Query("page"))
-	participantsSize := utils.FixSizeString(g.Query("size"))
+	participantsPage := utils.FixPageString(g.Query(PageParam))
+	participantsSize := utils.FixSizeString(g.Query(SizeParam))
 	participantsOffset := utils.GetOffset(participantsPage, participantsSize)
 	reverse := utils.GetBooleanOr(g.Query(ReverseParam), true)
 

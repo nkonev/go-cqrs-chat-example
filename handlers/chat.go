@@ -101,7 +101,7 @@ func (ch *ChatHandler) EditChat(g *gin.Context) {
 
 func (ch *ChatHandler) DeleteChat(g *gin.Context) {
 
-	cid := g.Param("id")
+	cid := g.Param(ChatIdParam)
 
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
@@ -126,7 +126,7 @@ func (ch *ChatHandler) DeleteChat(g *gin.Context) {
 }
 
 func (ch *ChatHandler) PinChat(g *gin.Context) {
-	cid := g.Param("id")
+	cid := g.Param(ChatIdParam)
 
 	chatId, err := utils.ParseInt64(cid)
 	if err != nil {
@@ -135,7 +135,7 @@ func (ch *ChatHandler) PinChat(g *gin.Context) {
 		return
 	}
 
-	p := g.Query("pin")
+	p := g.Query(PinParam)
 
 	pin := utils.GetBoolean(p)
 
